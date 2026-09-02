@@ -24,6 +24,7 @@
     <div id="chart"></div>
 </body>
 <script>
+    const GRAN = ['M5', 'M15', 'M30', 'H1'];
     const MONTH = [
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
@@ -129,8 +130,23 @@
     if (TOKEN) localStorage.setItem('oanda_token', TOKEN);
 
     const ACCOUNT = '001-003-11032463-001';
-
-    let candlesData = [];
+</script>
+<script>
+    const setChartData = (data) => {
+        candleSeries.setData(data.map(c => ({
+            time: c.time,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close
+        })));
+        const totalBars = data.length;
+        // Set the last 50 candles to be visible
+        timeScale.setVisibleLogicalRange({
+            from: totalBars - 50,
+            to: totalBars + 10,
+        });
+    }
 </script>
 <script>
     // the browser pools + keep-alives connections to OANDA automatically (HTTP/2)
@@ -152,64 +168,45 @@
                 return res.json();
             })
             .then(({ candles }) => candles.map(e => ({
-                ...e,
+                volume: e.volume,
+                complete: e.complete,
                 time: parseInt(e.time),
-                bid: { open: +e.bid.o, high: +e.bid.h, low: +e.bid.l, close: +e.bid.c }
-            })));
-    };
-
-    Promise.all([getCandles('XAU_USD', 'H1')])
-        .then(([h1]) => {
-            candlesData = h1;
-            candleSeries.setData(h1.map(c => ({
-                time: c.time,
-                open: c.bid.open,
-                high: c.bid.high,
-                low: c.bid.low,
-                close: c.bid.close
-            })));
-        })
-        .then(() => {
-            const totalBars = candlesData.length; 
-            // Set the last 50 candles to be visible
-            timeScale.setVisibleLogicalRange({
-                from: totalBars - 50,
-                to: totalBars + 10,
+                open: +e.bid.o,
+                high: +e.bid.h,
+                low: +e.bid.l,
+                close: +e.bid.c
+            })))
+            .then(candles => {
+                const key = `${pair}_${gran}`;
+                let candlesData = [];
+                if (count === 5000) {
+                    candlesData = candles;
+                    localStorage.setItem(key, JSON.stringify(candles));
+                } else {
+                    candlesData = JSON.parse(localStorage.getItem(key));
+                    for (const candle of candles) {
+                        if (candlesData.filter(e => e.time == candle.time).length == 0)
+                            candlesData.push(candle);
+                        else {
+                            candlesData = candlesData.map(e => {
+                                if (e.time == candle.time)
+                                    return candle
+                                else
+                                    return e
+                            });
+                        }
+                    }
+                    localStorage.setItem(key, JSON.stringify(candlesData));
+                }
+                setChartData(candlesData);
+                return candles;
             });
-        })
-        .catch(console.error);
-</script>
-<script>
-    // same origin note doesn't apply here: streaming uses a separate host (stream- vs api-)
-    // and holds one long-lived connection by design, so there's nothing to pool.
-    const streamPrices = async (pairs, onPrice) => {
-        const url = new URL(`https://stream-fxtrade.oanda.com/v3/accounts/${ACCOUNT}/pricing/stream`);
-        url.search = new URLSearchParams({ instruments: pairs.join(',') });
-        const res = await fetch(url, {
-            headers: {
-                'Authorization': `Bearer ${TOKEN}`,
-                'Accept-Datetime-Format': 'Unix'
-            }
-        });
-        if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-
-        const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-        let buf = '';
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) return;
-            buf += value;
-            const lines = buf.split('\n');
-            buf = lines.pop();
-            for (const line of lines) {
-                if (line) onPrice(JSON.parse(line));
-            }
-        }
     };
 
-    // streamPrices(['XAU_USD', 'EUR_USD', 'GBP_USD', 'USD_JPY'], msg => {
-    //     if (msg.type === 'PRICE') console.log(msg);
-    // }).catch(console.error);
+    getCandles('XAU_USD', 'H1');
+    setInterval(() => {
+        getCandles('XAU_USD', 'H1', 2)
+    }, 500);
 </script>
 
 </html>
