@@ -228,7 +228,7 @@
         const protectedHigh = Array.from(candles, c => ({ time: c.time, value: 0.0 }));
         const protectedLow = Array.from(candles, c => ({ time: c.time, value: -9999999.0 }));
         const mktState = Array.from(candles, c => ({ time: c.time, value: 0 }));
-        const impluseSince = Array.from(candles, c => ({ time: c.time, value: -1 }));
+        const impulseSince = Array.from(candles, c => ({ time: c.time, value: -1 }));
         const imbUpper = Array.from(candles, c => ({ time: c.time, value: 0 }));
         const imbLower = Array.from(candles, c => ({ time: c.time, value: 0 }));
         const imbZoneFresh = Array.from(candles, c => ({ time: c.time, value: 0 }));
@@ -242,7 +242,7 @@
             protectedHigh[i].value = protectedHigh[i - 1].value;
             protectedLow[i].value = protectedLow[i - 1].value;
             mktState[i].value = mktState[i - 1].value;
-            impulseSince[i].value = impluseSince[i - 1].value + 1;
+            impulseSince[i].value = impulseSince[i - 1].value + 1;
             imbUpper[i].value = imbUpper[i - 1].value;
             imbLower[i].value = imbLower[i - 1].value;
             imbZoneFresh[i].value = imbZoneFresh[i - 1].value;
@@ -273,7 +273,7 @@
                     (pivotHigh.value > zzPts[zzPts.length - 1].value)) {
                     zzPts.push(pivotHigh);
                     zzState[i].value = 1;
-                    impluseSince[i].value = -1;
+                    impulseSince[i].value = -1;
                     if (zzPts.length > 3 && highestPivot.length > 3 &&
                         Math.min(pivotHigh.value, candles[i - INDICATOR_MIDPT].close) > protectedHigh[i - 1].value) {
                         protectedHigh[i].value = pivotHigh.value;
@@ -290,7 +290,7 @@
                     (pivotLow.value < zzPts[zzPts.length - 1].value)) {
                     zzPts.push(pivotLow);
                     zzState[i].value = -1;
-                    impluseSince[i].value = -1;
+                    impulseSince[i].value = -1;
                     if (zzPts.length > 3 && lowestPivot.length > 3 &&
                         Math.max(pivotLow.value, candles[i - INDICATOR_MIDPT].close) < protectedLow[i - 1].value) {
                         protectedLow[i].value = pivotLow.value;
@@ -304,7 +304,7 @@
 
             // find last fvg
             if (protectedHigh[i].value != protectedHigh[i - 1].value) {
-                const fromIndex = i - impluseSince[i - 1].value - 5;
+                const fromIndex = i - impulseSince[i - 1].value - 5;
                 const toIndex = i - 5;
                 if (fromIndex < 0) continue;
                 for (let x = fromIndex; x <= toIndex; x++) {
@@ -349,8 +349,7 @@
                 });
                 signals.push({
                     time: candles[i].time,
-                    position: 'atPriceBottom',
-                    price: -1,
+                    position: 'belowBar',
                     color: 'lime',
                     shape: 'arrowUp',
                     text: '',
@@ -374,8 +373,7 @@
                 });
                 signals.push({
                     time: candles[i].time,
-                    position: 'atPriceBottom',
-                    price: -1,
+                    position: 'belowBar',
                     color: 'pink',
                     shape: 'arrowDown',
                     text: '',
@@ -457,7 +455,7 @@
             },
             1 // Pane index
         );
-        const impluse = chart.addSeries(
+        const impulse = chart.addSeries(
             LightweightCharts.HistogramSeries,
             {
                 color: 'dodgerblue',
@@ -480,8 +478,8 @@
         line3.setData(protectedLow);
         line4.setData(imbUpper);
         line5.setData(imbLower);
-        mktStateDown.setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 25 })));
-        mktStateUp.setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 25 })));
+        mktStateDown.setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 1 })));
+        mktStateUp.setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 1 })));
         impulse.setData(candles.map(e => ({ time: e.time, value: 0 })));
     }
 </script>
