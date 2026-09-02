@@ -30,6 +30,30 @@
     ]
     const chart = LightweightCharts.createChart(document.getElementById('chart'), {
         autoSize: true,
+        layout: {
+            background: 'black',
+            textColor: '#888',
+            attributionLogo: false
+        },
+        crosshair: {
+            mode: 0,
+            vertLine: {
+                color: '#333',
+                labelBackgroundColor: '#333',
+            },
+            horzLine: {
+                color: '#333',
+                labelBackgroundColor: '#333',
+            }
+        },
+        grid: {
+            vertLines: {
+                visible: false
+            },
+            horzLines: {
+                visible: false
+            }
+        },
         localization: {
             timeFormatter: (time) => {
                 // time is a UTCTimestamp in seconds
@@ -93,12 +117,20 @@
             },
         },
     });
-    const candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries);
+    const candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
+        upColor: 'white',
+        downColor: '#1f1f1f',
+        borderColor: 'white',
+        wickColor: 'white'
+    });
+    const timeScale = chart.timeScale();
 
     const TOKEN = localStorage.getItem('oanda_token') ?? prompt('OANDA token:');
     if (TOKEN) localStorage.setItem('oanda_token', TOKEN);
 
     const ACCOUNT = '001-003-11032463-001';
+
+    let candlesData = [];
 </script>
 <script>
     // the browser pools + keep-alives connections to OANDA automatically (HTTP/2)
@@ -126,9 +158,9 @@
             })));
     };
 
-    Promise.all([getCandles('XAU_USD', 'H1'), getCandles('XAU_USD', 'M5')])
-        .then(([h1, m5]) => {
-            console.log({ h1: h1.length, m5: m5.length, h1Last: h1.at(-1), m5Last: m5.at(-1) });
+    Promise.all([getCandles('XAU_USD', 'H1')])
+        .then(([h1]) => {
+            candlesData = h1;
             candleSeries.setData(h1.map(c => ({
                 time: c.time,
                 open: c.bid.open,
@@ -136,6 +168,14 @@
                 low: c.bid.low,
                 close: c.bid.close
             })));
+        })
+        .then(() => {
+            const totalBars = candlesData.length; 
+            // Set the last 50 candles to be visible
+            timeScale.setVisibleLogicalRange({
+                from: totalBars - 50,
+                to: totalBars + 10,
+            });
         })
         .catch(console.error);
 </script>
@@ -167,9 +207,9 @@
         }
     };
 
-    streamPrices(['XAU_USD', 'EUR_USD', 'GBP_USD', 'USD_JPY'], msg => {
-        if (msg.type === 'PRICE') console.log(msg);
-    }).catch(console.error);
+    // streamPrices(['XAU_USD', 'EUR_USD', 'GBP_USD', 'USD_JPY'], msg => {
+    //     if (msg.type === 'PRICE') console.log(msg);
+    // }).catch(console.error);
 </script>
 
 </html>
