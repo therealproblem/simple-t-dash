@@ -20,14 +20,14 @@
         autoSize: true
     });
     const candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries);
-</script>
-<script>
-    // the browser pools + keep-alives connections to OANDA automatically (HTTP/2)
+
     const TOKEN = localStorage.getItem('oanda_token') ?? prompt('OANDA token:');
     if (TOKEN) localStorage.setItem('oanda_token', TOKEN);
 
     const ACCOUNT = '001-003-11032463-001';
-
+</script>
+<script>
+    // the browser pools + keep-alives connections to OANDA automatically (HTTP/2)
     const getCandles = (pair, gran, count = 5000) => {
         const url = new URL(`https://api-fxtrade.oanda.com/v3/accounts/${ACCOUNT}/instruments/${pair}/candles`);
         url.search = new URLSearchParams({
