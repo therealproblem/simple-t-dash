@@ -132,7 +132,7 @@
     const ACCOUNT = '001-003-11032463-001';
 </script>
 <script>
-    const setChartData = (data) => {
+    const setChartData = (data, resetChart = false) => {
         candleSeries.setData(data.map(c => ({
             time: c.time,
             open: c.open,
@@ -140,12 +140,15 @@
             low: c.low,
             close: c.close
         })));
-        const totalBars = data.length;
-        // Set the last 50 candles to be visible
-        timeScale.setVisibleLogicalRange({
-            from: totalBars - 50,
-            to: totalBars + 10,
-        });
+
+        if (resetChart) {
+            const totalBars = data.length;
+            // Set the last 50 candles to be visible
+            timeScale.setVisibleLogicalRange({
+                from: totalBars - 50,
+                to: totalBars + 10,
+            });
+        }
     }
 </script>
 <script>
@@ -198,11 +201,12 @@
                     }
                     localStorage.setItem(key, JSON.stringify(candlesData));
                 }
-                setChartData(candlesData);
+                setChartData(candlesData, count === 5000);
                 return candles;
             });
     };
-
+</script>
+<script>
     getCandles('XAU_USD', 'H1');
     setInterval(() => {
         getCandles('XAU_USD', 'H1', 2)
