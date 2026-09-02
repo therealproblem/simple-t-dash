@@ -5,10 +5,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dash</title>
+    <script src="https://unpkg.com/lightweight-charts@5/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        html, body { margin: 0; height: 100%; }
+        #chart { width: 100%; height: 100%; }
+    </style>
 </head>
 
 <body>
-
+    <div id="chart"></div>
 </body>
 <script>
     // the browser pools + keep-alives connections to OANDA automatically (HTTP/2)
@@ -43,7 +48,15 @@
     };
 
     Promise.all([getCandles('XAU_USD', 'H1'), getCandles('XAU_USD', 'M5')])
-        .then(([h1, m5]) => console.log({ h1: h1.length, m5: m5.length, h1Last: h1.at(-1), m5Last: m5.at(-1) }))
+        .then(([h1, m5]) => {
+            console.log({ h1: h1.length, m5: m5.length, h1Last: h1.at(-1), m5Last: m5.at(-1) });
+
+            const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+                autoSize: true
+            });
+            const series = chart.addSeries(LightweightCharts.CandlestickSeries);
+            series.setData(h1.map(c => ({ time: c.time, open: c.bid.open, high: c.bid.high, low: c.bid.low, close: c.bid.close })));
+        })
         .catch(console.error);
 </script>
 <script>
