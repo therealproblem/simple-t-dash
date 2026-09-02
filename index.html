@@ -202,6 +202,7 @@
                     localStorage.setItem(key, JSON.stringify(candlesData));
                 }
                 setChartData(candlesData, count === 5000);
+                calculateOMS(candles);
                 return candles;
             });
     };
@@ -211,6 +212,278 @@
     setInterval(() => {
         getCandles('XAU_USD', 'H1', 2)
     }, 500);
+</script>
+<script>
+    const calculateOMS = (candles) => {
+        if (candles.length < 12) return;
+
+        // Indicator Settings
+        const INDICATOR_PERIOD = 11;
+        const INDICATOR_MIDPT = parseInt(INDICATOR_PERIOD / 2);
+
+        const highestPivot = [];
+        const lowestPivot = [];
+        const zzState = Array.from(candles, c => ({ time: c.time, value: 0 }));
+        const zzPts = [];
+        const protectedHigh = Array.from(candles, c => ({ time: c.time, value: 0.0 }));
+        const protectedLow = Array.from(candles, c => ({ time: c.time, value: -9999999.0 }));
+        const mktState = Array.from(candles, c => ({ time: c.time, value: 0 }));
+        const impluseSince = Array.from(candles, c => ({ time: c.time, value: -1 }));
+        const imbUpper = Array.from(candles, c => ({ time: c.time, value: 0 }));
+        const imbLower = Array.from(candles, c => ({ time: c.time, value: 0 }));
+        const imbZoneFresh = Array.from(candles, c => ({ time: c.time, value: 0 }));
+
+        const signalsCandle = [];
+        const signals = [];
+        const tp = [];
+
+        for (let i = INDICATOR_PERIOD; i < candles.length; i++) {
+            zzState[i].value = zzState[i - 1].value;
+            protectedHigh[i].value = protectedHigh[i - 1].value;
+            protectedLow[i].value = protectedLow[i - 1].value;
+            mktState[i].value = mktState[i - 1].value;
+            impulseSince[i].value = impluseSince[i - 1].value + 1;
+            imbUpper[i].value = imbUpper[i - 1].value;
+            imbLower[i].value = imbLower[i - 1].value;
+            imbZoneFresh[i].value = imbZoneFresh[i - 1].value;
+            const periodWindowCandles = candles.slice(i - INDICATOR_PERIOD + 1, i + 1);
+            const highestIndex = periodWindowCandles.reduce((maxIdx, current, idx, arr) =>
+                current.high > arr[maxIdx].high ? idx : maxIdx, 0
+            );
+            const lowestIndex = periodWindowCandles.reduce((minIdx, current, idx, arr) =>
+                current.low < arr[minIdx].low ? idx : minIdx, 0
+            );
+
+            const pivotHigh = {
+                time: candles[i].time,
+                value: candles[i - INDICATOR_MIDPT].high
+            }
+
+            const pivotLow = {
+                time: candles[i].time,
+                value: candles[i - INDICATOR_MIDPT].low
+            }
+
+            const pivotHighFound = highestIndex == INDICATOR_MIDPT;
+            const pivotLowFound = lowestIndex == INDICATOR_MIDPT;
+
+            if (pivotHighFound) {
+                highestPivot.push(pivotHigh);
+                if ((zzState[i - 1].value == 0) ||
+                    (pivotHigh.value > zzPts[zzPts.length - 1].value)) {
+                    zzPts.push(pivotHigh);
+                    zzState[i].value = 1;
+                    impluseSince[i].value = -1;
+                    if (zzPts.length > 3 && highestPivot.length > 3 &&
+                        Math.min(pivotHigh.value, candles[i - INDICATOR_MIDPT].close) > protectedHigh[i - 1].value) {
+                        protectedHigh[i].value = pivotHigh.value;
+                        mktState[i].value = 1;
+                        if (zzState[i - 1].value < 1) {
+                            protectedLow[i].value = zzPts[zzPts.length - 2].value;
+                        }
+                    }
+                }
+            }
+            if (pivotLowFound) {
+                lowestPivot.push(pivotLow);
+                if ((zzState[i - 1].value == 0) ||
+                    (pivotLow.value < zzPts[zzPts.length - 1].value)) {
+                    zzPts.push(pivotLow);
+                    zzState[i].value = -1;
+                    impluseSince[i].value = -1;
+                    if (zzPts.length > 3 && lowestPivot.length > 3 &&
+                        Math.max(pivotLow.value, candles[i - INDICATOR_MIDPT].close) < protectedLow[i - 1].value) {
+                        protectedLow[i].value = pivotLow.value;
+                        mktState[i].value = -1;
+                        if (zzState[i - 1].value > -1) {
+                            protectedHigh[i].value = zzPts[zzPts.length - 2].value;
+                        }
+                    }
+                }
+            }
+
+            // find last fvg
+            if (protectedHigh[i].value != protectedHigh[i - 1].value) {
+                const fromIndex = i - impluseSince[i - 1].value - 5;
+                const toIndex = i - 5;
+                if (fromIndex < 0) continue;
+                for (let x = fromIndex; x <= toIndex; x++) {
+                    if (mktState[x].value == 1) {
+                        if (candles[x - 2].high < candles[x].low) {
+                            imbUpper[i].value = candles[x - 2].high;
+                            imbLower[i].value = candles[x - 2].low;
+                            imbZoneFresh[i].value = 1;
+                            break;
+                        }
+                    } else {
+                        if (candles[x - 2].low > candles[x].high) {
+                            imbUpper[i].value = candles[x - 2].high;
+                            imbLower[i].value = candles[x - 2].low;
+                            imbZoneFresh[i].value = 1;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // create signals
+            const buyConditions = mktState[i].value == 1 &&
+                (protectedHigh[i].value - protectedLow[i].value) * 0.8 <= protectedHigh[i].value - imbUpper[i].value &&
+                candles[i].low < imbUpper[i].value &&
+                protectedLow[i].value <= imbLower[i].value &&
+                candles[i - 1].low > imbUpper[i].value &&
+                imbZoneFresh[i].value == 1;
+            const sellConditions = mktState[i].value == -1 &&
+                (protectedHigh[i].value - protectedLow[i].value) * 0.8 <= imbLower[i].value - protectedLow[i].value &&
+                candles[i].high > imbLower[i].value &&
+                protectedHigh[i].value >= imbUpper[i].value &&
+                candles[i - 1].high < imbLower[i].value &&
+                imbZoneFresh[i].value == 1;
+            if (buyConditions) {
+                signalsCandle.push({
+                    time: candles[i].time,
+                    position: 'belowBar',
+                    color: 'lime',
+                    shape: 'arrowUp',
+                    text: '',
+                });
+                signals.push({
+                    time: candles[i].time,
+                    position: 'atPriceBottom',
+                    price: -1,
+                    color: 'lime',
+                    shape: 'arrowUp',
+                    text: '',
+                });
+                tp.push({
+                    time: candles[i].time,
+                    position: 'atPriceTop',
+                    price: imbUpper[i].value + (imbUpper[i].value - protectedLow[i].value),
+                    color: 'dodgerblue',
+                    shape: 'arrowDown',
+                    text: '',
+                });
+                imbZoneFresh[i].value = -1;
+            } else if (sellConditions) {
+                signalsCandle.push({
+                    time: candles[i].time,
+                    position: 'aboveBar',
+                    color: 'pink',
+                    shape: 'arrowDown',
+                    text: '',
+                });
+                signals.push({
+                    time: candles[i].time,
+                    position: 'atPriceBottom',
+                    price: -1,
+                    color: 'pink',
+                    shape: 'arrowDown',
+                    text: '',
+                });
+                tp.push({
+                    time: candles[i].time,
+                    position: 'atPriceBottom',
+                    price: imbLower[i].value - (protectedHigh[i].value - imbLower[i].value),
+                    color: 'dodgerblue',
+                    shape: 'arrowUp',
+                    text: '',
+                });
+                imbZoneFresh[i].value = -1;
+            }
+        }
+
+        const line = chart.addSeries(LightweightCharts.LineSeries, {
+            lineWidth: 1,
+            axisLabelVisible: false,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            crosshairMarkerVisible: false
+        });
+        const line2 = chart.addSeries(LightweightCharts.LineSeries, {
+            lineWidth: 1,
+            axisLabelVisible: false,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            color: 'teal',
+            crosshairMarkerVisible: false
+        });
+        const line3 = chart.addSeries(LightweightCharts.LineSeries, {
+            lineWidth: 1,
+            axisLabelVisible: false,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            color: 'crimson',
+            crosshairMarkerVisible: false
+        });
+        const line4 = chart.addSeries(LightweightCharts.LineSeries, {
+            lineWidth: 1,
+            axisLabelVisible: false,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            color: 'dodgerblue',
+            crosshairMarkerVisible: false
+        });
+        const line5 = chart.addSeries(LightweightCharts.LineSeries, {
+            lineWidth: 1,
+            axisLabelVisible: false,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            color: 'dodgerblue',
+            crosshairMarkerVisible: false
+        });
+        const mktStateUp = chart.addSeries(
+            LightweightCharts.HistogramSeries,
+            {
+                color: 'teal',
+                axisLabelVisible: false,
+                lastValueVisible: false,
+                priceLineVisible: false,
+                priceFormat: {
+                    type: 'volume',
+                },
+            },
+            1 // Pane index
+        );
+        const mktStateDown = chart.addSeries(
+            LightweightCharts.HistogramSeries,
+            {
+                color: 'crimson',
+                axisLabelVisible: false,
+                lastValueVisible: false,
+                priceLineVisible: false,
+                priceFormat: {
+                    type: 'volume',
+                },
+            },
+            1 // Pane index
+        );
+        const impluse = chart.addSeries(
+            LightweightCharts.HistogramSeries,
+            {
+                color: 'dodgerblue',
+                axisLabelVisible: false,
+                lastValueVisible: false,
+                priceLineVisible: false,
+                priceFormat: {
+                    type: 'volume',
+                },
+            },
+            1 // Pane index
+        );
+
+        LightweightCharts.createSeriesMarkers(candleSeries, signalsCandle);
+        LightweightCharts.createSeriesMarkers(impulse, signals);
+        LightweightCharts.createSeriesMarkers(candleSeries, tp);
+
+        line.setData(zzPts);
+        line2.setData(protectedHigh);
+        line3.setData(protectedLow);
+        line4.setData(imbUpper);
+        line5.setData(imbLower);
+        mktStateDown.setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 25 })));
+        mktStateUp.setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 25 })));
+        impulse.setData(candles.map(e => ({ time: e.time, value: 0 })));
+    }
 </script>
 
 </html>
