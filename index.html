@@ -16,6 +16,12 @@
     <div id="chart"></div>
 </body>
 <script>
+    const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+        autoSize: true
+    });
+    const candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries);
+</script>
+<script>
     // the browser pools + keep-alives connections to OANDA automatically (HTTP/2)
     const TOKEN = localStorage.getItem('oanda_token') ?? prompt('OANDA token:');
     if (TOKEN) localStorage.setItem('oanda_token', TOKEN);
@@ -50,12 +56,13 @@
     Promise.all([getCandles('XAU_USD', 'H1'), getCandles('XAU_USD', 'M5')])
         .then(([h1, m5]) => {
             console.log({ h1: h1.length, m5: m5.length, h1Last: h1.at(-1), m5Last: m5.at(-1) });
-
-            const chart = LightweightCharts.createChart(document.getElementById('chart'), {
-                autoSize: true
-            });
-            const series = chart.addSeries(LightweightCharts.CandlestickSeries);
-            series.setData(h1.map(c => ({ time: c.time, open: c.bid.open, high: c.bid.high, low: c.bid.low, close: c.bid.close })));
+            candleSeries.setData(h1.map(c => ({ 
+                time: c.time, 
+                open: c.bid.open, 
+                high: c.bid.high, 
+                low: c.bid.low, 
+                close: c.bid.close 
+            })));
         })
         .catch(console.error);
 </script>
