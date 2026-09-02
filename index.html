@@ -156,6 +156,7 @@
             zzPts,
             protectedHigh, protectedLow,
             imbUpper, imbLower,
+            entryLine,
             mktState,
             signalsCandle, signals, tp,
             shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
@@ -265,12 +266,13 @@
         line.setData(zzPts);
         line2.setData(protectedHigh);
         line3.setData(protectedLow);
-        line4.setData(imbUpper);
-        line5.setData(imbLower);
-        // mktStateDown.setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 1 })));
-        // mktStateUp.setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 1 })));
+        line4.setData(entryLine);
+        // line4.setData(imbUpper);
+        // line5.setData(imbLower);
+        mktStateDown.setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 1 })));
+        mktStateUp.setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 1 })));
         impulse.setData(mktState.map(e => ({ time: e.time, value: 0 })));
-        triggerCond.setData(freshZone);
+        // triggerCond.setData(freshZone);
     }
 </script>
 <script>
@@ -355,6 +357,8 @@
         const imbUpper = Array.from(candles, c => ({ time: c.time, value: 0 }));
         const imbLower = Array.from(candles, c => ({ time: c.time, value: 0 }));
         const imbZoneFresh = Array.from(candles, c => ({ time: c.time, value: 0 }));
+
+        const entryLine = [];
 
         const shouldBuy = [];
         const correctZoneSize = [];
@@ -468,6 +472,10 @@
                     candles[i].low < imbUpper[i].value && candles[i - 1].low > imbUpper[i].value :
                     candles[i].high > imbLower[i].value && candles[i - 1].high < imbLower[i].value;
 
+            entryLine.push({
+                time: candles[i].time,
+                value: (_shouldBuy ? imbUpper : imbLower)[i].value
+            })
             shouldBuy.push({
                 time: candles[i].time,
                 value: _shouldBuy ? 1 : 0
@@ -524,6 +532,7 @@
             zzPts,
             protectedHigh, protectedLow,
             imbUpper, imbLower,
+            entryLine, 
             mktState,
             signalsCandle, signals, tp,
             shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
