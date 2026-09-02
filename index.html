@@ -150,6 +150,115 @@
             });
         }
     }
+
+    const setIndicator = (indicatorData) => {
+        const {
+            zzPts,
+            protectedHigh, protectedLow,
+            imbUpper, imbLower,
+            mktState,
+            signalsCandle, signals, tp
+        } = indicatorData;
+
+        const line = chart.addSeries(LightweightCharts.LineSeries, {
+            lineWidth: 1,
+            axisLabelVisible: false,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            crosshairMarkerVisible: false
+        });
+        const line2 = chart.addSeries(LightweightCharts.LineSeries, {
+            lineWidth: 2,
+            axisLabelVisible: false,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            color: 'teal',
+            lineType: 1,
+            crosshairMarkerVisible: false
+        });
+        const line3 = chart.addSeries(LightweightCharts.LineSeries, {
+            lineWidth: 2,
+            axisLabelVisible: false,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            color: 'orange',
+            lineType: 1,
+            crosshairMarkerVisible: false
+        });
+        const line4 = chart.addSeries(LightweightCharts.LineSeries, {
+            lineWidth: 1,
+            axisLabelVisible: false,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            color: 'fuchsia',
+            lineType: 1,
+            lineStyle: 2,
+            crosshairMarkerVisible: false
+        });
+        const line5 = chart.addSeries(LightweightCharts.LineSeries, {
+            lineWidth: 1,
+            axisLabelVisible: false,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            color: 'fuchsia',
+            lineType: 1,
+            lineStyle: 2,
+            crosshairMarkerVisible: false
+        });
+        const mktStateUp = chart.addSeries(
+            LightweightCharts.HistogramSeries,
+            {
+                color: 'teal',
+                axisLabelVisible: false,
+                lastValueVisible: false,
+                priceLineVisible: false,
+                priceFormat: {
+                    type: 'volume',
+                },
+            },
+            1 // Pane index
+        );
+        const mktStateDown = chart.addSeries(
+            LightweightCharts.HistogramSeries,
+            {
+                color: 'crimson',
+                axisLabelVisible: false,
+                lastValueVisible: false,
+                priceLineVisible: false,
+                priceFormat: {
+                    type: 'volume',
+                },
+            },
+            1 // Pane index
+        );
+        const impulse = chart.addSeries(
+            LightweightCharts.HistogramSeries,
+            {
+                color: 'dodgerblue',
+                axisLabelVisible: false,
+                lastValueVisible: false,
+                priceLineVisible: false,
+                priceFormat: {
+                    type: 'volume',
+                },
+            },
+            1 // Pane index
+        );
+
+        LightweightCharts.createSeriesMarkers(candleSeries, signalsCandle);
+        LightweightCharts.createSeriesMarkers(impulse, signals);
+        LightweightCharts.createSeriesMarkers(candleSeries, tp);
+        chart.panes()[1].setHeight(80);
+
+        line.setData(zzPts);
+        line2.setData(protectedHigh);
+        line3.setData(protectedLow);
+        line4.setData(imbUpper);
+        line5.setData(imbLower);
+        mktStateDown.setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 1 })));
+        mktStateUp.setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 1 })));
+        impulse.setData(mktState.map(e => ({ time: e.time, value: 0 })));
+    }
 </script>
 <script>
     // the browser pools + keep-alives connections to OANDA automatically (HTTP/2)
@@ -202,7 +311,8 @@
                     localStorage.setItem(key, JSON.stringify(candlesData));
                 }
                 setChartData(candlesData, count === 5000);
-                calculateOMS(candles);
+                const indicatorData = calculateOMS(candlesData);
+                setIndicator(indicatorData);
                 return candles;
             });
     };
@@ -327,160 +437,56 @@
             }
 
             // create signals
-            const buyConditions = mktState[i].value == 1 &&
-                (protectedHigh[i].value - protectedLow[i].value) * 0.8 <= protectedHigh[i].value - imbUpper[i].value &&
-                candles[i].low < imbUpper[i].value &&
-                protectedLow[i].value <= imbLower[i].value &&
-                candles[i - 1].low > imbUpper[i].value &&
-                imbZoneFresh[i].value == 1;
-            const sellConditions = mktState[i].value == -1 &&
-                (protectedHigh[i].value - protectedLow[i].value) * 0.8 <= imbLower[i].value - protectedLow[i].value &&
-                candles[i].high > imbLower[i].value &&
-                protectedHigh[i].value >= imbUpper[i].value &&
-                candles[i - 1].high < imbLower[i].value &&
-                imbZoneFresh[i].value == 1;
-            if (buyConditions) {
+            const shouldBuy = mktState[i].value == 1;
+            const correctZoneSize = (protectedHigh[i].value - protectedLow[i].value) * 0.8 <= (shouldBuy ?
+                protectedHigh[i].value - imbUpper[i].value :
+                imbLower[i].value - protectedLow[i].value);
+            const freshZone = imbZoneFresh[i].value == 1;
+            const imbInProtectedArea = shouldBuy ?
+                protectedLow[i].value <= imbLower[i].value :
+                protectedHigh[i].value >= imbUpper[i].value;
+            const enteredImbZone = shouldBuy ?
+                candles[i].low < imbUpper[i].value && candles[i - 1].low > imbUpper[i].value :
+                candles[i].high > imbLower[i].value && candles[i - 1].high < imbLower[i].value;
+
+            const trigger = correctZoneSize && freshZone && imbInProtectedArea && enteredImbZone;
+            if (enteredImbZone) imbZoneFresh[i].value = -1;
+
+            if (trigger) {
                 signalsCandle.push({
                     time: candles[i].time,
-                    position: 'belowBar',
-                    color: 'lime',
-                    shape: 'arrowUp',
+                    position: shouldBuy ? 'belowBar' : 'aboveBar',
+                    color: shouldBuy ? 'lime' : 'pink',
+                    shape: shouldBuy ? 'arrowUp' : 'arrowDown',
                     text: '',
                 });
                 signals.push({
                     time: candles[i].time,
                     position: 'belowBar',
-                    color: 'lime',
-                    shape: 'arrowUp',
+                    color: shouldBuy ? 'lime' : 'pink',
+                    shape: shouldBuy ? 'arrowUp' : 'arrowDown',
                     text: '',
                 });
                 tp.push({
                     time: candles[i].time,
-                    position: 'atPriceTop',
-                    price: imbUpper[i].value + (imbUpper[i].value - protectedLow[i].value),
+                    position: shouldBuy ? 'atPriceTop' : 'atPriceBottom',
+                    price: shouldBuy ?
+                        imbUpper[i].value + (imbUpper[i].value - protectedLow[i].value) :
+                        imbLower[i].value - (protectedHigh[i].value - imbLower[i].value),
                     color: 'dodgerblue',
-                    shape: 'arrowDown',
+                    shape: shouldBuy ? 'arrowDown' : 'arrowUp',
                     text: '',
                 });
-                imbZoneFresh[i].value = -1;
-            } else if (sellConditions) {
-                signalsCandle.push({
-                    time: candles[i].time,
-                    position: 'aboveBar',
-                    color: 'pink',
-                    shape: 'arrowDown',
-                    text: '',
-                });
-                signals.push({
-                    time: candles[i].time,
-                    position: 'belowBar',
-                    color: 'pink',
-                    shape: 'arrowDown',
-                    text: '',
-                });
-                tp.push({
-                    time: candles[i].time,
-                    position: 'atPriceBottom',
-                    price: imbLower[i].value - (protectedHigh[i].value - imbLower[i].value),
-                    color: 'dodgerblue',
-                    shape: 'arrowUp',
-                    text: '',
-                });
-                imbZoneFresh[i].value = -1;
             }
         }
 
-        const line = chart.addSeries(LightweightCharts.LineSeries, {
-            lineWidth: 1,
-            axisLabelVisible: false,
-            lastValueVisible: false,
-            priceLineVisible: false,
-            crosshairMarkerVisible: false
-        });
-        const line2 = chart.addSeries(LightweightCharts.LineSeries, {
-            lineWidth: 1,
-            axisLabelVisible: false,
-            lastValueVisible: false,
-            priceLineVisible: false,
-            color: 'teal',
-            crosshairMarkerVisible: false
-        });
-        const line3 = chart.addSeries(LightweightCharts.LineSeries, {
-            lineWidth: 1,
-            axisLabelVisible: false,
-            lastValueVisible: false,
-            priceLineVisible: false,
-            color: 'crimson',
-            crosshairMarkerVisible: false
-        });
-        const line4 = chart.addSeries(LightweightCharts.LineSeries, {
-            lineWidth: 1,
-            axisLabelVisible: false,
-            lastValueVisible: false,
-            priceLineVisible: false,
-            color: 'dodgerblue',
-            crosshairMarkerVisible: false
-        });
-        const line5 = chart.addSeries(LightweightCharts.LineSeries, {
-            lineWidth: 1,
-            axisLabelVisible: false,
-            lastValueVisible: false,
-            priceLineVisible: false,
-            color: 'dodgerblue',
-            crosshairMarkerVisible: false
-        });
-        const mktStateUp = chart.addSeries(
-            LightweightCharts.HistogramSeries,
-            {
-                color: 'teal',
-                axisLabelVisible: false,
-                lastValueVisible: false,
-                priceLineVisible: false,
-                priceFormat: {
-                    type: 'volume',
-                },
-            },
-            1 // Pane index
-        );
-        const mktStateDown = chart.addSeries(
-            LightweightCharts.HistogramSeries,
-            {
-                color: 'crimson',
-                axisLabelVisible: false,
-                lastValueVisible: false,
-                priceLineVisible: false,
-                priceFormat: {
-                    type: 'volume',
-                },
-            },
-            1 // Pane index
-        );
-        const impulse = chart.addSeries(
-            LightweightCharts.HistogramSeries,
-            {
-                color: 'dodgerblue',
-                axisLabelVisible: false,
-                lastValueVisible: false,
-                priceLineVisible: false,
-                priceFormat: {
-                    type: 'volume',
-                },
-            },
-            1 // Pane index
-        );
-
-        LightweightCharts.createSeriesMarkers(candleSeries, signalsCandle);
-        LightweightCharts.createSeriesMarkers(impulse, signals);
-        LightweightCharts.createSeriesMarkers(candleSeries, tp);
-
-        line.setData(zzPts);
-        line2.setData(protectedHigh);
-        line3.setData(protectedLow);
-        line4.setData(imbUpper);
-        line5.setData(imbLower);
-        mktStateDown.setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 1 })));
-        mktStateUp.setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 1 })));
-        impulse.setData(candles.map(e => ({ time: e.time, value: 0 })));
+        return {
+            zzPts,
+            protectedHigh, protectedLow,
+            imbUpper, imbLower,
+            mktState,
+            signalsCandle, signals, tp
+        }
     }
 </script>
 
