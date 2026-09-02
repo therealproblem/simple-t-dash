@@ -157,7 +157,8 @@
             protectedHigh, protectedLow,
             imbUpper, imbLower,
             mktState,
-            signalsCandle, signals, tp
+            signalsCandle, signals, tp,
+            shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
         } = indicatorData;
 
         const line = chart.addSeries(LightweightCharts.LineSeries, {
@@ -234,13 +235,24 @@
         const impulse = chart.addSeries(
             LightweightCharts.HistogramSeries,
             {
-                color: 'dodgerblue',
+                color: 'transparent',
                 axisLabelVisible: false,
                 lastValueVisible: false,
                 priceLineVisible: false,
                 priceFormat: {
                     type: 'volume',
                 },
+            },
+            1 // Pane index
+        );
+
+        const triggerCond = chart.addSeries(
+            LightweightCharts.LineSeries,
+            {
+                color: 'crimson',
+                axisLabelVisible: false,
+                lastValueVisible: false,
+                priceLineVisible: false,
             },
             1 // Pane index
         );
@@ -255,9 +267,10 @@
         line3.setData(protectedLow);
         line4.setData(imbUpper);
         line5.setData(imbLower);
-        mktStateDown.setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 1 })));
-        mktStateUp.setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 1 })));
+        // mktStateDown.setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 1 })));
+        // mktStateUp.setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 1 })));
         impulse.setData(mktState.map(e => ({ time: e.time, value: 0 })));
+        triggerCond.setData(freshZone);
     }
 </script>
 <script>
@@ -343,6 +356,12 @@
         const imbLower = Array.from(candles, c => ({ time: c.time, value: 0 }));
         const imbZoneFresh = Array.from(candles, c => ({ time: c.time, value: 0 }));
 
+        const shouldBuy = [];
+        const correctZoneSize = [];
+        const freshZone = [];
+        const imbInProtectedArea = [];
+        const enteredImbZone = [];
+
         const signalsCandle = [];
         const signals = [];
         const tp = [];
@@ -380,7 +399,7 @@
             if (pivotHighFound) {
                 highestPivot.push(pivotHigh);
                 if ((zzState[i - 1].value == 0) ||
-                    (pivotHigh.value > zzPts[zzPts.length - 1].value)) {
+                    (pivotHigh.value > zzPts.at(-1).value)) {
                     zzPts.push(pivotHigh);
                     zzState[i].value = 1;
                     impulseSince[i].value = -1;
@@ -397,7 +416,7 @@
             if (pivotLowFound) {
                 lowestPivot.push(pivotLow);
                 if ((zzState[i - 1].value == 0) ||
-                    (pivotLow.value < zzPts[zzPts.length - 1].value)) {
+                    (pivotLow.value < zzPts.at(-1).value)) {
                     zzPts.push(pivotLow);
                     zzState[i].value = -1;
                     impulseSince[i].value = -1;
@@ -437,44 +456,65 @@
             }
 
             // create signals
-            const shouldBuy = mktState[i].value == 1;
-            const correctZoneSize = (protectedHigh[i].value - protectedLow[i].value) * 0.8 <= (shouldBuy ?
-                protectedHigh[i].value - imbUpper[i].value :
-                imbLower[i].value - protectedLow[i].value);
-            const freshZone = imbZoneFresh[i].value == 1;
-            const imbInProtectedArea = shouldBuy ?
-                protectedLow[i].value <= imbLower[i].value :
-                protectedHigh[i].value >= imbUpper[i].value;
-            const enteredImbZone = shouldBuy ?
-                candles[i].low < imbUpper[i].value && candles[i - 1].low > imbUpper[i].value :
-                candles[i].high > imbLower[i].value && candles[i - 1].high < imbLower[i].value;
+            const _shouldBuy = mktState[i].value == 1;
+            const _correctZoneSize = (protectedHigh[i].value - protectedLow[i].value) * 0.8 <= (_shouldBuy ?
+                    protectedHigh[i].value - imbUpper[i].value :
+                    imbLower[i].value - protectedLow[i].value);
+            const _freshZone = imbZoneFresh[i].value == 1;
+            const _imbInProtectedArea = _shouldBuy ?
+                    protectedLow[i].value <= imbLower[i].value :
+                    protectedHigh[i].value >= imbUpper[i].value
+            const _enteredImbZone = _shouldBuy ?
+                    candles[i].low < imbUpper[i].value && candles[i - 1].low > imbUpper[i].value :
+                    candles[i].high > imbLower[i].value && candles[i - 1].high < imbLower[i].value;
 
-            const trigger = correctZoneSize && freshZone && imbInProtectedArea && enteredImbZone;
-            if (enteredImbZone) imbZoneFresh[i].value = -1;
+            shouldBuy.push({
+                time: candles[i].time,
+                value: _shouldBuy ? 1 : 0
+            });
+            correctZoneSize.push({
+                time: candles[i].time,
+                value: _correctZoneSize ? 1 : 0
+            });
+            freshZone.push({
+                time: candles[i].time,
+                value: _freshZone ? 1 : 0
+            });
+            imbInProtectedArea.push({
+                time: candles[i].time,
+                value: _imbInProtectedArea ? 1 : 0
+            });
+            enteredImbZone.push({
+                time: candles[i].time,
+                value: _enteredImbZone ? 1 : 0
+            });
+
+            const trigger = _correctZoneSize && _freshZone && _imbInProtectedArea && _enteredImbZone;
+            if (_enteredImbZone) imbZoneFresh[i].value = -1;
 
             if (trigger) {
                 signalsCandle.push({
                     time: candles[i].time,
-                    position: shouldBuy ? 'belowBar' : 'aboveBar',
-                    color: shouldBuy ? 'lime' : 'pink',
-                    shape: shouldBuy ? 'arrowUp' : 'arrowDown',
+                    position: _shouldBuy ? 'belowBar' : 'aboveBar',
+                    color: _shouldBuy ? 'lime' : 'pink',
+                    shape: _shouldBuy ? 'arrowUp' : 'arrowDown',
                     text: '',
                 });
                 signals.push({
                     time: candles[i].time,
                     position: 'belowBar',
-                    color: shouldBuy ? 'lime' : 'pink',
-                    shape: shouldBuy ? 'arrowUp' : 'arrowDown',
+                    color: _shouldBuy ? 'lime' : 'pink',
+                    shape: _shouldBuy ? 'arrowUp' : 'arrowDown',
                     text: '',
                 });
                 tp.push({
                     time: candles[i].time,
-                    position: shouldBuy ? 'atPriceTop' : 'atPriceBottom',
-                    price: shouldBuy ?
+                    position: _shouldBuy ? 'atPriceTop' : 'atPriceBottom',
+                    price: _shouldBuy ?
                         imbUpper[i].value + (imbUpper[i].value - protectedLow[i].value) :
                         imbLower[i].value - (protectedHigh[i].value - imbLower[i].value),
                     color: 'dodgerblue',
-                    shape: shouldBuy ? 'arrowDown' : 'arrowUp',
+                    shape: _shouldBuy ? 'arrowDown' : 'arrowUp',
                     text: '',
                 });
             }
@@ -485,7 +525,8 @@
             protectedHigh, protectedLow,
             imbUpper, imbLower,
             mktState,
-            signalsCandle, signals, tp
+            signalsCandle, signals, tp,
+            shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
         }
     }
 </script>
