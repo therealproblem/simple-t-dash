@@ -74,7 +74,7 @@
         }
 
         .pair-row .timer {
-            color: transparent;
+            color: #333;
             margin-left: 5px;
             font-size: 0.5rem;
         }
@@ -412,7 +412,7 @@
                 if (count === 5000) {
                     candlesData = candles;
                 } else {
-                    candlesData = allCandlesData[key];
+                    candlesData = allCandlesData[key]['candles'];
                     for (const candle of candles) {
                         if (candlesData.filter(e => e.time == candle.time).length == 0)
                             candlesData.push(candle);
@@ -426,7 +426,8 @@
                         }
                     }
                 }
-                allCandlesData[key] = candlesData;
+                allCandlesData[key]['candles'] = candlesData;
+                allCandlesData[key]['lastUpdatedTime'] = Math.floor(Date.now() / 1000); //unix time
                 const indicatorData = calculateOMS(candlesData);
                 const {
                     shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
@@ -656,6 +657,9 @@
 <script>
     for (const pair of PAIRS) {
         for (const gran of GRAN) {
+            const key = `${pair}_${gran}`;
+            const lastUpdatedTime = Math.floor(Date.now() / 1000);
+            allCandlesData[key] = { candles: [], lastUpdatedTime };
             getCandles(pair, gran);
         }
     }
@@ -666,6 +670,24 @@
             }
         }
     }, 5000);
+</script>
+<script>
+    setInterval(() => {
+        if (Object.keys(allCandlesData).length < PAIRS.length * GRAN.length) return;
+        for (const pair of PAIRS) {
+            let latestUpdatedTime = 0;
+            for (const gran of GRAN) {
+                const key = `${pair}_${gran}`;
+                latestUpdatedTime = Math.max(latestUpdatedTime, allCandlesData[key]['lastUpdatedTime']);
+            }
+            const unixTimeNow = Math.floor(Date.now() / 1000);
+            const elaspedTime = unixTimeNow - latestUpdatedTime;
+            const timerElm = document.querySelector(`.pair-row#${pair} > .timer`);
+            timerElm.innerText = elaspedTime + 's';
+            timerElm.classList.remove('warning');
+            if (elaspedTime >= 20) timerElm.classList.add('warning');
+        }
+    }, 500);
 </script>
 <script>
     const createPairRows = () => {
