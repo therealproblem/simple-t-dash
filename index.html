@@ -11,25 +11,123 @@
         body {
             margin: 0;
             height: 100%;
+            background: #000;
+            display: flex;
+            flex-direction: row;
+            font-size: 16px;
+            overflow: hidden;
         }
 
-        #chart {
-            width: 100%;
-            height: 100%;
+        .pair-row {
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 0.8rem;
+            display: flex;
+            margin: 1px 0px;
+            padding: 1px 0px;
+            align-items: baseline;
+        }
+
+        .pair-row .name {
+            width: 5vw;
+        }
+
+        .pair-row .gran {
+            border: 1px solid transparent;
+            color: #333;
+            font-size: 0.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2px 5px;
+            margin: 0px 2px;
+            border-radius: 0.2rem;
+            font-weight: bold;
+        }
+
+        .pair-row .gran.mkt_state_sell {
+            color: crimson;
+        }
+
+        .pair-row .gran.mkt_state_sell.ready {
+            border: 1px solid crimson;
+        }
+
+        .pair-row .gran.mkt_state_sell.trigger {
+            border: 1px solid crimson;
+            background-color: crimson;
+            color: #000;
+        }
+
+        .pair-row .gran.mkt_state_buy {
+            color: teal;
+        }
+
+        .pair-row .gran.mkt_state_buy.ready {
+            border: 1px solid teal;
+        }
+
+        .pair-row .gran.mkt_state_buy.trigger {
+            border: 1px solid teal;
+            background-color: teal;
+            color: #000;
+        }
+
+        .pair-row .timer {
+            color: transparent;
+            margin-left: 5px;
+            font-size: 0.5rem;
+        }
+
+        .pair-row .timer.warning {
+            color: red;
+        }
+
+        #sidebar {
+            width: 20vw;
+            height: 100vh;
+            overflow-y: scroll;
+        }
+
+        #charts {
+            display: flex;
+            flex-wrap: wrap;
+            width: 80vw;
+            height: 100vh;
+        }
+
+        .chart {
+            width: 40vw;
+            height: 50vh;
         }
     </style>
 </head>
 
 <body>
-    <div id="chart"></div>
+    <div id="sidebar"></div>
+    <div id="charts">
+        <div class="chart" id="1"></div>
+        <div class="chart" id="2"></div>
+        <div class="chart" id="3"></div>
+        <div class="chart" id="4"></div>
+    </div>
 </body>
 <script>
     const GRAN = ['M5', 'M15', 'M30', 'H1'];
+    const PAIRS = [
+        "AUD_CAD", "AUD_CHF", "AUD_JPY", "AUD_NZD", "AUD_USD",
+        "CAD_CHF", "CAD_JPY", "CHF_JPY",
+        "EUR_AUD", "EUR_CAD", "EUR_CHF", "EUR_GBP", "EUR_JPY", "EUR_NZD", "EUR_USD",
+        "GBP_AUD", "GBP_CAD", "GBP_CHF", "GBP_JPY", "GBP_NZD", "GBP_USD",
+        "NZD_CAD", "NZD_CHF", "NZD_JPY", "NZD_USD",
+        "USD_CAD", "USD_CHF", "USD_JPY",
+        "XAG_USD", "XAU_USD"
+    ];
     const MONTH = [
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ]
-    const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+    const CHART_SETTINGS = {
         autoSize: true,
         layout: {
             background: 'black',
@@ -117,7 +215,11 @@
                 }
             },
         },
-    });
+    };
+    const chart = LightweightCharts.createChart(document.getElementById('1'), CHART_SETTINGS);
+    const chart2 = LightweightCharts.createChart(document.getElementById('2'), CHART_SETTINGS);
+    const chart3 = LightweightCharts.createChart(document.getElementById('3'), CHART_SETTINGS);
+    const chart4 = LightweightCharts.createChart(document.getElementById('4'), CHART_SETTINGS);
     const candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
         upColor: 'white',
         downColor: '#1f1f1f',
@@ -333,12 +435,6 @@
     };
 </script>
 <script>
-    getCandles('XAU_USD', 'H1');
-    setInterval(() => {
-        getCandles('XAU_USD', 'H1', 2)
-    }, 500);
-</script>
-<script>
     const calculateOMS = (candles) => {
         if (candles.length < 12) return;
 
@@ -462,15 +558,15 @@
             // create signals
             const _shouldBuy = mktState[i].value == 1;
             const _correctZoneSize = (protectedHigh[i].value - protectedLow[i].value) * 0.8 <= (_shouldBuy ?
-                    protectedHigh[i].value - imbUpper[i].value :
-                    imbLower[i].value - protectedLow[i].value);
+                protectedHigh[i].value - imbUpper[i].value :
+                imbLower[i].value - protectedLow[i].value);
             const _freshZone = imbZoneFresh[i].value == 1;
             const _imbInProtectedArea = _shouldBuy ?
-                    protectedLow[i].value <= imbLower[i].value :
-                    protectedHigh[i].value >= imbUpper[i].value
+                protectedLow[i].value <= imbLower[i].value :
+                protectedHigh[i].value >= imbUpper[i].value
             const _enteredImbZone = _shouldBuy ?
-                    candles[i].low < imbUpper[i].value && candles[i - 1].low > imbUpper[i].value :
-                    candles[i].high > imbLower[i].value && candles[i - 1].high < imbLower[i].value;
+                candles[i].low < imbUpper[i].value && candles[i - 1].low > imbUpper[i].value :
+                candles[i].high > imbLower[i].value && candles[i - 1].high < imbLower[i].value;
 
             entryLine.push({
                 time: candles[i].time,
@@ -532,12 +628,41 @@
             zzPts,
             protectedHigh, protectedLow,
             imbUpper, imbLower,
-            entryLine, 
+            entryLine,
             mktState,
             signalsCandle, signals, tp,
             shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
         }
     }
+</script>
+<script>
+    const createPairRows = () => {
+        let htmlStr = '';
+        for (const pair of PAIRS) {
+            htmlStr += `<div class="pair-row" id="${pair}"><div class="name">${pair.replace('_', '/')}</div>`;
+            for (const gran of GRAN) {
+                htmlStr += `<div class="gran">${gran}</div>`;
+            }
+            htmlStr += `<div class="timer">0s</div>`;
+            htmlStr += `</div>`;
+        }
+        document.getElementById("sidebar").innerHTML = htmlStr;
+    }
+    createPairRows();
+</script>
+<script>
+    // for (const pair of PAIRS) {
+    //     for (const gran of GRAN) {
+    //         getCandles(pair, gran);
+    //     }
+    // }
+    // setInterval(() => {
+    //     for (const pair of PAIRS) {
+    //         for (const gran of GRAN) {
+    //             getCandles(pair, gran);
+    //         }
+    //     }
+    // }, 5000);
 </script>
 
 </html>
