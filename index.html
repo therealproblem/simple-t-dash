@@ -262,7 +262,7 @@
 
     for (let i = 1; i <= 4; i++) {
         const chart = LightweightCharts.createChart(document.getElementById(`${i}`), CHART_SETTINGS);
-
+        const series = chart.addSeries(LightweightCharts.CandlestickSeries, CANDLES_SETTINGS);
         const line1 = chart.addSeries(LightweightCharts.LineSeries, {
             lineWidth: 1,
             axisLabelVisible: false,
@@ -338,14 +338,19 @@
             1 // Pane index
         );
 
+        const marker1 = LightweightCharts.createSeriesMarkers(series, []);
+        const marker2 = LightweightCharts.createSeriesMarkers(series, []);
+        const marker3 = LightweightCharts.createSeriesMarkers(hist2, []);
+
         chart.panes()[1].setHeight(50);
 
         chartObjects.push({
             chart,
-            series: chart.addSeries(LightweightCharts.CandlestickSeries, CANDLES_SETTINGS),
+            series,
             timeScale: chart.timeScale(),
             lines: [line1, line2, line3, line4],
-            hists: [hist1, hist2, hist3]
+            hists: [hist1, hist2, hist3],
+            markers: [marker1, marker2, marker3]
         })
     }
 </script>
@@ -369,7 +374,7 @@
         }
     }
 
-    const setIndicator = (chart, series, lines, hists, indicatorData) => {
+    const setIndicator = (chart, series, lines, hists, markers, indicatorData) => {
         const {
             zzPts,
             protectedHigh, protectedLow,
@@ -380,10 +385,6 @@
             shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
         } = indicatorData;
 
-        LightweightCharts.createSeriesMarkers(series, signalsCandle);
-        LightweightCharts.createSeriesMarkers(hists[2], signals);
-        LightweightCharts.createSeriesMarkers(series, tp);
-
         lines[0].setData(zzPts);
         lines[1].setData(protectedHigh);
         lines[2].setData(protectedLow);
@@ -391,6 +392,10 @@
         hists[0].setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 1 })));
         hists[1].setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 1 })));
         hists[2].setData(mktState.map(e => ({ time: e.time, value: 0 })));
+
+        markers[0].setMarkers(signalsCandle)
+        markers[1].setMarkers(tp)
+        markers[2].setMarkers(signals)
     }
 
     const render = (pair) => {
@@ -402,7 +407,7 @@
             const candlesData = allCandlesData[`${pair}_${GRAN[i]}`]['candles'];
             const indicatorData = allCandlesData[`${pair}_${GRAN[i]}`]['indicators'];
             setChartData(chartObj.series, chartObj.timeScale, candlesData, true);
-            setIndicator(chartObj.chart, chartObj.series, chartObj.lines, chartObj.hists, indicatorData);
+            setIndicator(chartObj.chart, chartObj.series, chartObj.lines, chartObj.hists, chartObj.markers, indicatorData);
         }
     }
 </script>
@@ -705,13 +710,13 @@
     setInterval(() => {
         if (Object.keys(allCandlesData).length < PAIRS.length * GRAN.length) return;
         for (const pair of PAIRS) {
-            let latestUpdatedTime = 0;
+            const unixTimeNow = Math.floor(Date.now() / 1000);
+            let oldestUpdatedTime = unixTimeNow;
             for (const gran of GRAN) {
                 const key = `${pair}_${gran}`;
-                latestUpdatedTime = Math.max(latestUpdatedTime, allCandlesData[key]['lastUpdatedTime']);
+                oldestUpdatedTime = Math.min(oldestUpdatedTime, allCandlesData[key]['lastUpdatedTime']);
             }
-            const unixTimeNow = Math.floor(Date.now() / 1000);
-            const elaspedTime = unixTimeNow - latestUpdatedTime;
+            const elaspedTime = unixTimeNow - oldestUpdatedTime;
             const timerElm = document.querySelector(`.pair-row#${pair} > .timer`);
             timerElm.innerText = elaspedTime + 's';
             timerElm.classList.remove('warning');
