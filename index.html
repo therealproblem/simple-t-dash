@@ -393,7 +393,7 @@
         // markers[2].setMarkers(signals)
     }
 
-    const render = (pair) => {
+    const render = (pair, reset = true) => {
         if (Object.keys(allCandlesData).length < PAIRS.length * GRAN.length) return;
         Array.from(document.querySelectorAll('.pair-row')).map(e => e.classList.remove('selected'));
         document.querySelector(`.pair-row#${pair}`).classList.add('selected');
@@ -713,6 +713,7 @@
                 getCandles(pair, gran);
             }
         }
+        render(document.querySelector('.pair-row.selected').id, false);
     }, 5000);
 </script>
 <script>
