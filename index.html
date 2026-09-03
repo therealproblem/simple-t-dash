@@ -60,16 +60,16 @@
         }
 
         .pair-row .gran.mkt_state_buy {
-            color: teal;
+            color: lime;
         }
 
         .pair-row .gran.mkt_state_buy.ready {
-            border: 1px solid teal;
+            border: 1px solid lime;
         }
 
         .pair-row .gran.mkt_state_buy.trigger {
-            border: 1px solid teal;
-            background-color: teal;
+            border: 1px solid lime;
+            background-color: lime;
             color: #000;
         }
 
@@ -427,9 +427,20 @@
                     }
                     localStorage.setItem(key, JSON.stringify(candlesData));
                 }
-                setChartData(candlesData, count === 5000);
                 const indicatorData = calculateOMS(candlesData);
-                setIndicator(indicatorData);
+                const {
+                    shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
+                } = indicatorData;
+                const granElm = document.querySelector(`.pair-row#${pair} > .gran#${gran}`);
+                console.dir(granElm);
+                //reset
+                granElm.classList.remove('mkt_state_sell');
+                granElm.classList.remove('mkt_state_buy');
+                granElm.classList.remove('trigger');
+                granElm.classList.remove('ready');
+                
+                // set market state
+                granElm.classList.add(`mkt_state_${shouldBuy ? 'buy' : 'sell'}`);
                 return candles;
             });
     };
@@ -636,12 +647,28 @@
     }
 </script>
 <script>
+    // for (const pair of PAIRS) {
+    //     for (const gran of GRAN) {
+    //         getCandles(pair, gran);
+    //     }
+    // }
+    getCandles('XAU_USD','H1');
+    setInterval(() => {
+        // for (const pair of PAIRS) {
+        //     for (const gran of GRAN) {
+        //         getCandles(pair, gran);
+        //     }
+        // }
+        getCandles('XAU_USD','H1');
+    }, 5000);
+</script>
+<script>
     const createPairRows = () => {
         let htmlStr = '';
         for (const pair of PAIRS) {
             htmlStr += `<div class="pair-row" id="${pair}"><div class="name">${pair.replace('_', '/')}</div>`;
             for (const gran of GRAN) {
-                htmlStr += `<div class="gran">${gran}</div>`;
+                htmlStr += `<div class="gran" id="${gran}">${gran}</div>`;
             }
             htmlStr += `<div class="timer">0s</div>`;
             htmlStr += `</div>`;
@@ -650,19 +677,6 @@
     }
     createPairRows();
 </script>
-<script>
-    // for (const pair of PAIRS) {
-    //     for (const gran of GRAN) {
-    //         getCandles(pair, gran);
-    //     }
-    // }
-    // setInterval(() => {
-    //     for (const pair of PAIRS) {
-    //         for (const gran of GRAN) {
-    //             getCandles(pair, gran);
-    //         }
-    //     }
-    // }, 5000);
-</script>
+
 
 </html>
