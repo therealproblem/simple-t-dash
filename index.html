@@ -127,6 +127,7 @@
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ]
+    const allCandlesData = {};
     const CHART_SETTINGS = {
         autoSize: true,
         layout: {
@@ -410,9 +411,8 @@
                 let candlesData = [];
                 if (count === 5000) {
                     candlesData = candles;
-                    localStorage.setItem(key, JSON.stringify(candles));
                 } else {
-                    candlesData = JSON.parse(localStorage.getItem(key));
+                    candlesData = allCandlesData[key];
                     for (const candle of candles) {
                         if (candlesData.filter(e => e.time == candle.time).length == 0)
                             candlesData.push(candle);
@@ -425,22 +425,29 @@
                             });
                         }
                     }
-                    localStorage.setItem(key, JSON.stringify(candlesData));
                 }
+                allCandlesData[key] = candlesData;
                 const indicatorData = calculateOMS(candlesData);
                 const {
                     shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
                 } = indicatorData;
                 const granElm = document.querySelector(`.pair-row#${pair} > .gran#${gran}`);
-                console.dir(granElm);
+
                 //reset
                 granElm.classList.remove('mkt_state_sell');
                 granElm.classList.remove('mkt_state_buy');
                 granElm.classList.remove('trigger');
                 granElm.classList.remove('ready');
-                
+
                 // set market state
-                granElm.classList.add(`mkt_state_${shouldBuy ? 'buy' : 'sell'}`);
+                granElm.classList.add(`mkt_state_${shouldBuy.at(-1).value ? 'buy' : 'sell'}`);
+
+                // set trigger & ready
+                const readyCond = correctZoneSize.at(-1).value && freshZone.at(-1).value && imbInProtectedArea.at(-1).value;
+                const triggerCond = readyCond && enteredImbZone.at(-1).value;
+                if (triggerCond) granElm.classList.add(`trigger`);
+                else if (readyCond) granElm.classList.add('ready');
+
                 return candles;
             });
     };
@@ -647,19 +654,17 @@
     }
 </script>
 <script>
-    // for (const pair of PAIRS) {
-    //     for (const gran of GRAN) {
-    //         getCandles(pair, gran);
-    //     }
-    // }
-    getCandles('XAU_USD','H1');
+    for (const pair of PAIRS) {
+        for (const gran of GRAN) {
+            getCandles(pair, gran);
+        }
+    }
     setInterval(() => {
-        // for (const pair of PAIRS) {
-        //     for (const gran of GRAN) {
-        //         getCandles(pair, gran);
-        //     }
-        // }
-        getCandles('XAU_USD','H1');
+        for (const pair of PAIRS) {
+            for (const gran of GRAN) {
+                getCandles(pair, gran);
+            }
+        }
     }, 5000);
 </script>
 <script>
