@@ -9,6 +9,16 @@
     <style>
         html,
         body {
+            -webkit-touch-callout: none;
+            /* iOS Safari */
+            -webkit-user-select: none;
+            /* Safari */
+            -moz-user-select: none;
+            /* Firefox */
+            -ms-user-select: none;
+            /* Internet Explorer/Edge */
+            user-select: none;
+            /* Standard syntax */
             margin: 0;
             height: 100%;
             background: #000;
@@ -23,13 +33,28 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             font-size: 0.8rem;
             display: flex;
-            margin: 1px 0px;
-            padding: 1px 0px;
-            align-items: baseline;
+            margin: 2px 0px;
+            padding: 2px 5px;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .pair-row.selected {
+            background-color: #222;
+        }
+
+        .pair-row.selected .name,
+        .pair-row.selected .timer {
+            color: white;
+        }
+
+        .pair-row.selected .gran {
+            opacity: 0.6;
         }
 
         .pair-row .name {
             width: 5vw;
+            color: #555;
         }
 
         .pair-row .gran {
@@ -43,6 +68,7 @@
             margin: 0px 2px;
             border-radius: 0.2rem;
             font-weight: bold;
+            opacity: 0.3;
         }
 
         .pair-row .gran.mkt_state_sell {
@@ -57,6 +83,7 @@
             border: 1px solid crimson;
             background-color: crimson;
             color: #000;
+            opacity: 1.0;
         }
 
         .pair-row .gran.mkt_state_buy {
@@ -71,11 +98,12 @@
             border: 1px solid lime;
             background-color: lime;
             color: #000;
+            opacity: 1.0;
         }
 
         .pair-row .timer {
             color: #333;
-            margin-left: 5px;
+            margin-left: 20px;
             font-size: 0.5rem;
         }
 
@@ -104,7 +132,9 @@
 </head>
 
 <body>
-    <div id="sidebar"></div>
+    <div id="sidebar">
+
+    </div>
     <div id="charts">
         <div class="chart" id="1"></div>
         <div class="chart" id="2"></div>
@@ -113,6 +143,10 @@
     </div>
 </body>
 <script>
+    const TOKEN = localStorage.getItem('oanda_token') ?? prompt('OANDA token:');
+    if (TOKEN) localStorage.setItem('oanda_token', TOKEN);
+
+    const ACCOUNT = '001-003-11032463-001';
     const GRAN = ['M5', 'M15', 'M30', 'H1'];
     const PAIRS = [
         "AUD_CAD", "AUD_CHF", "AUD_JPY", "AUD_NZD", "AUD_USD",
@@ -128,6 +162,12 @@
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ]
     const allCandlesData = {};
+    const CANDLES_SETTINGS = {
+        upColor: 'white',
+        downColor: '#1f1f1f',
+        borderColor: 'white',
+        wickColor: 'white'
+    }
     const CHART_SETTINGS = {
         autoSize: true,
         layout: {
@@ -217,55 +257,13 @@
             },
         },
     };
-    const chart = LightweightCharts.createChart(document.getElementById('1'), CHART_SETTINGS);
-    const chart2 = LightweightCharts.createChart(document.getElementById('2'), CHART_SETTINGS);
-    const chart3 = LightweightCharts.createChart(document.getElementById('3'), CHART_SETTINGS);
-    const chart4 = LightweightCharts.createChart(document.getElementById('4'), CHART_SETTINGS);
-    const candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
-        upColor: 'white',
-        downColor: '#1f1f1f',
-        borderColor: 'white',
-        wickColor: 'white'
-    });
-    const timeScale = chart.timeScale();
 
-    const TOKEN = localStorage.getItem('oanda_token') ?? prompt('OANDA token:');
-    if (TOKEN) localStorage.setItem('oanda_token', TOKEN);
+    const chartObjects = [];
 
-    const ACCOUNT = '001-003-11032463-001';
-</script>
-<script>
-    const setChartData = (data, resetChart = false) => {
-        candleSeries.setData(data.map(c => ({
-            time: c.time,
-            open: c.open,
-            high: c.high,
-            low: c.low,
-            close: c.close
-        })));
+    for (let i = 1; i <= 4; i++) {
+        const chart = LightweightCharts.createChart(document.getElementById(`${i}`), CHART_SETTINGS);
 
-        if (resetChart) {
-            const totalBars = data.length;
-            // Set the last 50 candles to be visible
-            timeScale.setVisibleLogicalRange({
-                from: totalBars - 50,
-                to: totalBars + 10,
-            });
-        }
-    }
-
-    const setIndicator = (indicatorData) => {
-        const {
-            zzPts,
-            protectedHigh, protectedLow,
-            imbUpper, imbLower,
-            entryLine,
-            mktState,
-            signalsCandle, signals, tp,
-            shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
-        } = indicatorData;
-
-        const line = chart.addSeries(LightweightCharts.LineSeries, {
+        const line1 = chart.addSeries(LightweightCharts.LineSeries, {
             lineWidth: 1,
             axisLabelVisible: false,
             lastValueVisible: false,
@@ -300,17 +298,7 @@
             lineStyle: 2,
             crosshairMarkerVisible: false
         });
-        const line5 = chart.addSeries(LightweightCharts.LineSeries, {
-            lineWidth: 1,
-            axisLabelVisible: false,
-            lastValueVisible: false,
-            priceLineVisible: false,
-            color: 'fuchsia',
-            lineType: 1,
-            lineStyle: 2,
-            crosshairMarkerVisible: false
-        });
-        const mktStateUp = chart.addSeries(
+        const hist1 = chart.addSeries(
             LightweightCharts.HistogramSeries,
             {
                 color: 'teal',
@@ -323,7 +311,7 @@
             },
             1 // Pane index
         );
-        const mktStateDown = chart.addSeries(
+        const hist2 = chart.addSeries(
             LightweightCharts.HistogramSeries,
             {
                 color: 'crimson',
@@ -336,7 +324,7 @@
             },
             1 // Pane index
         );
-        const impulse = chart.addSeries(
+        const hist3 = chart.addSeries(
             LightweightCharts.HistogramSeries,
             {
                 color: 'transparent',
@@ -350,32 +338,72 @@
             1 // Pane index
         );
 
-        const triggerCond = chart.addSeries(
-            LightweightCharts.LineSeries,
-            {
-                color: 'crimson',
-                axisLabelVisible: false,
-                lastValueVisible: false,
-                priceLineVisible: false,
-            },
-            1 // Pane index
-        );
+        chart.panes()[1].setHeight(50);
 
-        LightweightCharts.createSeriesMarkers(candleSeries, signalsCandle);
-        LightweightCharts.createSeriesMarkers(impulse, signals);
-        LightweightCharts.createSeriesMarkers(candleSeries, tp);
-        chart.panes()[1].setHeight(80);
+        chartObjects.push({
+            chart,
+            series: chart.addSeries(LightweightCharts.CandlestickSeries, CANDLES_SETTINGS),
+            timeScale: chart.timeScale(),
+            lines: [line1, line2, line3, line4],
+            hists: [hist1, hist2, hist3]
+        })
+    }
+</script>
+<script>
+    const setChartData = (series, timeScale, data, resetChart = false) => {
+        series.setData(data.map(c => ({
+            time: c.time,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close
+        })));
 
-        line.setData(zzPts);
-        line2.setData(protectedHigh);
-        line3.setData(protectedLow);
-        line4.setData(entryLine);
-        // line4.setData(imbUpper);
-        // line5.setData(imbLower);
-        mktStateDown.setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 1 })));
-        mktStateUp.setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 1 })));
-        impulse.setData(mktState.map(e => ({ time: e.time, value: 0 })));
-        // triggerCond.setData(freshZone);
+        if (resetChart) {
+            const totalBars = data.length;
+            // Set the last 50 candles to be visible
+            timeScale.setVisibleLogicalRange({
+                from: totalBars - 50,
+                to: totalBars + 10,
+            });
+        }
+    }
+
+    const setIndicator = (chart, series, lines, hists, indicatorData) => {
+        const {
+            zzPts,
+            protectedHigh, protectedLow,
+            imbUpper, imbLower,
+            entryLine,
+            mktState,
+            signalsCandle, signals, tp,
+            shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
+        } = indicatorData;
+
+        LightweightCharts.createSeriesMarkers(series, signalsCandle);
+        LightweightCharts.createSeriesMarkers(hists[2], signals);
+        LightweightCharts.createSeriesMarkers(series, tp);
+
+        lines[0].setData(zzPts);
+        lines[1].setData(protectedHigh);
+        lines[2].setData(protectedLow);
+        lines[3].setData(entryLine);
+        hists[0].setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 1 })));
+        hists[1].setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 1 })));
+        hists[2].setData(mktState.map(e => ({ time: e.time, value: 0 })));
+    }
+
+    const render = (pair) => {
+        if (Object.keys(allCandlesData).length < PAIRS.length * GRAN.length) return;
+        Array.from(document.querySelectorAll('.pair-row')).map(e => e.classList.remove('selected'));
+        document.querySelector(`.pair-row#${pair}`).classList.add('selected');
+        for (let i = 0; i < 4; i++) {
+            const chartObj = chartObjects[i];
+            const candlesData = allCandlesData[`${pair}_${GRAN[i]}`]['candles'];
+            const indicatorData = allCandlesData[`${pair}_${GRAN[i]}`]['indicators'];
+            setChartData(chartObj.series, chartObj.timeScale, candlesData, true);
+            setIndicator(chartObj.chart, chartObj.series, chartObj.lines, chartObj.hists, indicatorData);
+        }
     }
 </script>
 <script>
@@ -430,6 +458,7 @@
                 allCandlesData[key]['candles'] = candlesData;
                 allCandlesData[key]['lastUpdatedTime'] = Math.floor(Date.now() / 1000); //unix time
                 const indicatorData = calculateOMS(candlesData);
+                allCandlesData[key]['indicators'] = indicatorData;
                 const {
                     shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
                 } = indicatorData;
@@ -660,7 +689,7 @@
         for (const gran of GRAN) {
             const key = `${pair}_${gran}`;
             const lastUpdatedTime = Math.floor(Date.now() / 1000);
-            allCandlesData[key] = { candles: [], lastUpdatedTime };
+            allCandlesData[key] = { candles: [], indicators: {}, lastUpdatedTime };
             getCandles(pair, gran);
         }
     }
@@ -694,7 +723,7 @@
     const createPairRows = () => {
         let htmlStr = '';
         for (const pair of PAIRS) {
-            htmlStr += `<div class="pair-row" id="${pair}"><div class="name">${pair.replace('_', '/')}</div>`;
+            htmlStr += `<div class="pair-row" id="${pair}" onclick="render('${pair}')"><div class="name">${pair.replace('_', '/')}</div>`;
             for (const gran of GRAN) {
                 htmlStr += `<div class="gran" id="${gran}">${gran}</div>`;
             }
