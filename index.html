@@ -356,19 +356,13 @@
 </script>
 <script>
     const setChartData = (series, timeScale, data, resetChart = false) => {
-        series.setData(data.map(c => ({
-            time: c.time,
-            open: c.open,
-            high: c.high,
-            low: c.low,
-            close: c.close
-        })));
+        series.setData(data);
 
         if (resetChart) {
             const totalBars = data.length;
             // Set the last 50 candles to be visible
             timeScale.setVisibleLogicalRange({
-                from: totalBars - 50,
+                from: totalBars - 100,
                 to: totalBars + 10,
             });
         }
@@ -393,9 +387,9 @@
         hists[1].setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 1 })));
         hists[2].setData(mktState.map(e => ({ time: e.time, value: -1 })));
 
-        markers[0].setMarkers(signalsCandle)
-        markers[1].setMarkers(tp)
-        markers[2].setMarkers(signals)
+        markers[0].setMarkers(signalsCandle);
+        markers[1].setMarkers(tp);
+        // markers[2].setMarkers(signals)
     }
 
     const render = (pair) => {
@@ -406,6 +400,19 @@
             const chartObj = chartObjects[i];
             const candlesData = allCandlesData[`${pair}_${GRAN[i]}`]['candles'];
             const indicatorData = allCandlesData[`${pair}_${GRAN[i]}`]['indicators'];
+
+            // reset
+            chartObj.lines[0].setData([]);
+            chartObj.lines[1].setData([]);
+            chartObj.lines[2].setData([]);
+            chartObj.lines[3].setData([]);
+            chartObj.hists[0].setData([]);
+            chartObj.hists[1].setData([]);
+            chartObj.hists[2].setData([]);
+            chartObj.markers[0].setMarkers([])
+            chartObj.markers[1].setMarkers([])
+            chartObj.markers[2].setMarkers([])
+
             setChartData(chartObj.series, chartObj.timeScale, candlesData, true);
             setIndicator(chartObj.chart, chartObj.series, chartObj.lines, chartObj.hists, chartObj.markers, indicatorData);
         }
@@ -661,7 +668,7 @@
                 signals.push({
                     time: candles[i].time,
                     position: 'atPriceBottom',
-                    price: -1,
+                    price: 0,
                     color: _shouldBuy ? 'lime' : 'pink',
                     shape: _shouldBuy ? 'arrowUp' : 'arrowDown',
                     text: '',
