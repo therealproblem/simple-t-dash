@@ -389,9 +389,9 @@
         lines[1].setData(protectedHigh);
         lines[2].setData(protectedLow);
         lines[3].setData(entryLine);
-        hists[0].setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 1 })));
-        hists[1].setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 1 })));
-        hists[2].setData(mktState.map(e => ({ time: e.time, value: 0 })));
+        hists[0].setData(mktState.filter(e => e.value == 1).map(e => ({ time: e.time, value: 1 })));
+        hists[1].setData(mktState.filter(e => e.value == -1).map(e => ({ time: e.time, value: 1 })));
+        hists[2].setData(mktState.map(e => ({ time: e.time, value: -1 })));
 
         markers[0].setMarkers(signalsCandle)
         markers[1].setMarkers(tp)
@@ -660,7 +660,8 @@
                 });
                 signals.push({
                     time: candles[i].time,
-                    position: 'belowBar',
+                    position: 'atPriceBottom',
+                    price: -1,
                     color: _shouldBuy ? 'lime' : 'pink',
                     shape: _shouldBuy ? 'arrowUp' : 'arrowDown',
                     text: '',
