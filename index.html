@@ -191,6 +191,10 @@
 <script>
     const TOKEN = localStorage.getItem('oanda_token') ?? prompt('OANDA token:');
     if (TOKEN) localStorage.setItem('oanda_token', TOKEN);
+    const BOT_TOKEN = localStorage.getItem('bot_token') ?? prompt('BOT token:');
+    if (BOT_TOKEN) localStorage.setItem('bot_token', BOT_TOKEN);
+    const CHAT_ID = localStorage.getItem('chat_id') ?? prompt('Chat ID:');
+    if (CHAT_ID) localStorage.setItem('chat_id', CHAT_ID);
 
     const ACCOUNT = '001-003-11032463-001';
     const GRAN = ['M5', 'M15', 'M30', 'H1'];
@@ -550,7 +554,7 @@
                 const {
                     shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
                 } = indicatorData;
-                const granElm = document.querySelector(`.pair-row#${pair} > .gran#${gran}`);
+                const granElm = document.querySelector(`.pair-row#${pair} > .gran.${gran}`);
 
                 //reset
                 granElm.classList.remove('mkt_state_sell');
@@ -830,25 +834,110 @@
     }, 5000);
 </script>
 <!--
-    sortList(): re-partitions the sidebar rows between the #triggered and
-    #watchlist containers, based on whether a row has a child
-    ".gran.triggered" element, by rebuilding each container's innerHTML from
-    the matching rows' outerHTML. NOTE: getCandles (above) only ever adds a
-    "trigger" class (no "-ed"), so ".gran.triggered" never matches - every
-    row currently lands in #watchlist regardless of trigger state.
-
-    Staleness-timer loop, ticking every 500ms. For each pair, finds the
-    oldest lastUpdatedTime across its granularities and writes the elapsed
-    seconds into that row's .timer element, adding a "warning" class once
-    the data hasn't refreshed in 20+ seconds (a sign the 5s poll loop above
-    is stalled or failing, e.g. an expired OANDA token), then calls
-    sortList() to re-sort the sidebar. No-ops until every pair/granularity
-    has been loaded at least once.
+    Trigger notifications, sidebar sorting, and the staleness-timer loop -
+    three concerns sharing one setInterval tick every 500ms.
+    - checkIfNeedNotification(): diffs the pairs currently showing a
+      ".gran.trigger" badge against the previous tick's list
+      (prevTriggeredList); for each newly-triggered pair it plays
+      playTripleClick() and calls sendTelegramMessage().
+    - playTripleClick(): fires three short 1kHz triangle-wave blips via the
+      Web Audio API (~0/150/300ms apart) as an audible alert.
+    - sendTelegramMessage(pair, granArr): POSTs to the Telegram Bot API
+      (using BOT_TOKEN/CHAT_ID from the config script above) with the pair
+      name and its triggered granularities, HTML-underlined.
+    - sortList(): re-partitions the sidebar rows between the #triggered and
+      #watchlist containers based on whether a row has a child
+      ".gran.trigger" element (matching the class getCandles, above,
+      actually sets), rebuilding each container's innerHTML from the
+      matching rows' outerHTML.
+    - The setInterval also does the original job: for each pair, find the
+      oldest lastUpdatedTime across its granularities, write the elapsed
+      seconds into that row's .timer element, and add a "warning" class
+      once it's 20+ seconds stale (a sign the 5s poll loop above is
+      stalled, e.g. an expired OANDA token). No-ops until every
+      pair/granularity has been loaded at least once.
+    - Remaining rough edge: inside checkIfNeedNotification's loop, granArr
+      is queried sidebar-wide (all ".gran.trigger" elements) rather than
+      scoped to `pair`, so if more than one pair triggers in the same
+      tick, every message sent that tick lists the combined set of
+      granularities instead of just that pair's own.
 -->
 <script>
+    let prevTriggeredList = [];
+    const checkIfNeedNotification = () => {
+        const triggeredElmList = document.querySelectorAll('.pair-row:has(> .gran.trigger)');
+        const triggeredPairArr = Array.from(triggeredElmList).map(e => e.id);
+        const prevSet = new Set(prevTriggeredList);
+        const newPairs = triggeredPairArr.filter(e => !prevSet.has(e));
+        prevTriggeredList = triggeredPairArr;
+        if (newPairs.length > 0) {
+            playTripleClick();
+            for (const pair of newPairs) {
+                const granArr = Array.from(document.querySelectorAll('.pair-row > .gran.trigger')).map(e => e.innerText);
+                sendTelegramMessage(pair, granArr);
+            }
+        }
+    }
+
+    const playTripleClick = () => {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        const triggerClick = (delayMs) => {
+            const time = audioCtx.currentTime + (delayMs / 1000);
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            // 'triangle' or 'square' gives a sharper, more mechanical sound than 'sine'
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(1000, time); // High pitch for a crisp click
+
+            // Instant attack, fast decay
+            gainNode.gain.setValueAtTime(2.5, time);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.02); // 20ms fade out
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.start(time);
+            oscillator.stop(time + 0.025); // Hard stop just after the fade
+        }
+
+        // Play the two clicks in rapid succession (70ms apart)
+        triggerClick(0);
+        triggerClick(150);
+        triggerClick(300);
+    }
+
+    const sendTelegramMessage = async (pair, granArr = []) => {
+        const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+        const text = `-- ${pair.replace('_','/')} -- [ ` + granArr.map(e => '<u>' + e + '</u>').join(' | ') + ' ]';
+        console.log(text);
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    chat_id: CHAT_ID,
+                    text,
+                    parse_mode: 'HTML' // Optional: Allows bold/italic formatting
+                })
+            });
+
+            const data = await response.json();
+
+            if (!data.ok) {
+                console.error('Telegram API Error:', data.description);
+            }
+        } catch (error) {
+            console.error('Network Error:', error);
+        }
+    }
+
     const sortList = () => {
-        const triggeredElmList = document.querySelectorAll('.pair-row:has(> .gran.triggered)');
-        const elmList = document.querySelectorAll('.pair-row:not(:has(> .gran.triggered))');
+        const triggeredElmList = document.querySelectorAll('.pair-row:has(> .gran.trigger)');
+        const elmList = document.querySelectorAll('.pair-row:not(:has(> .gran.trigger))');
         const triggeredHTML = Array.from(triggeredElmList).map(node => node.outerHTML).join('');
         const watchlistHTML = Array.from(elmList).map(node => node.outerHTML).join('');
         document.querySelector('#sidebar > #triggered').innerHTML = triggeredHTML;
@@ -871,6 +960,7 @@
             if (elaspedTime >= 20) timerElm.classList.add('warning');
         }
         sortList();
+        checkIfNeedNotification();
     }, 500);
 </script>
 <!--
@@ -889,7 +979,7 @@
         for (const pair of PAIRS) {
             htmlStr += `<div class="pair-row" id="${pair}" onclick="render('${pair}')"><div class="name">${pair.replace('_', '/')}</div>`;
             for (const gran of GRAN) {
-                htmlStr += `<div class="gran" id="${gran}">${gran}</div>`;
+                htmlStr += `<div class="gran ${gran}">${gran}</div>`;
             }
             htmlStr += `<div class="timer">0s</div>`;
             htmlStr += `</div>`;
