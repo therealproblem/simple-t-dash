@@ -910,7 +910,7 @@
 
     const sendTelegramMessage = async (pair, granArr = []) => {
         const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-        const text = `-- ${pair.replace('_','/')} -- [ ` + granArr.map(e => '<u>' + e + '</u>').join(' | ') + ' ]';
+        const text = `-- ${pair.replace('_', '/')} -- [ ` + granArr.map(e => '<u>' + e + '</u>').join(' | ') + ' ]';
         try {
             const response = await fetch(url, {
                 method: 'POST',
@@ -989,16 +989,24 @@
 </script>
 <!--
     Keyboard navigation: on ArrowDown/ArrowUp keyup, moves the sidebar
-    selection to the next/previous pair (wrapping around at either end) and
-    calls render(pair, true) to redraw the charts and reset their visible
-    time range. If nothing is selected yet, either key selects the first
-    pair in PAIRS instead of stepping relative to a selection.
+    selection to the next/previous pair (wrapping around at either end). The
+    `.selected` class moves immediately each keystroke, but the actual
+    render(pair, true) is debounced 150ms so holding/repeating the key only
+    repaints charts once, for the pair the user finally lands on. If nothing
+    is selected yet, either key selects the first pair in PAIRS instead of
+    stepping relative to a selection.
 -->
 <script>
-    window.addEventListener('keyup', (event) => {
+    let renderTimer = null;
+    const debouncedRender = (pair) => {
+        clearTimeout(renderTimer);
+        renderTimer = setTimeout(() => render(pair, true), 300);
+    }
+
+    window.addEventListener('keydown', (event) => {
         const selectDefault = () => {
             document.querySelector(`.pair-row#${PAIRS[0]}`).classList.add('selected');
-            render(PAIRS[0], true);
+            debouncedRender(PAIRS[0]);
             return;
         }
 
@@ -1014,12 +1022,12 @@
                     let nextIndex = index + 1;
                     if (nextIndex == pairs.length) nextIndex = 0;
                     pairs[nextIndex].classList.add('selected');
-                    render(pairs[nextIndex].id, true);
+                    debouncedRender(pairs[nextIndex].id);
                 } else {
                     let nextIndex = index - 1;
                     if (nextIndex == -1) nextIndex = pairs.length - 1;
                     pairs[nextIndex].classList.add('selected');
-                    render(pairs[nextIndex].id, true);
+                    debouncedRender(pairs[nextIndex].id);
                 }
             }
         }
