@@ -5,6 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dash</title>
+    <!--
+        Loads TradingView's Lightweight Charts library (v5) from the unpkg CDN.
+        Exposes the global `LightweightCharts` object (createChart, series
+        types like CandlestickSeries/LineSeries/HistogramSeries, marker
+        helpers, TickMarkType, etc.) that every inline script below depends
+        on for rendering the candlestick charts. Must load before any other
+        script on this page runs.
+    -->
     <script src="https://unpkg.com/lightweight-charts@5/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         html,
@@ -143,6 +151,21 @@
         <div class="chart" id="3"></div>
     </div>
 </body>
+<!--
+    Global config, state, and chart setup.
+    - Reads the OANDA API token from localStorage, prompting for it once and
+      persisting it if missing.
+    - Defines the account id, the granularities (GRAN) and instrument pairs
+      (PAIRS) the dashboard tracks, and shared style settings for candles
+      and chart chrome (colors, crosshair, grid, time-axis formatting in the
+      Europe/Athens timezone).
+    - Creates one LightweightCharts chart per grid cell (#1-#4, one per
+      granularity), each with a candlestick series, 4 line series (zigzag,
+      protected high/low, entry line), 3 histogram series in a second pane
+      (market-state up/down/background), and 3 marker sets (signal arrows,
+      take-profit, raw signals). All chart handles are pushed onto the
+      module-level `chartObjects` array for later scripts to update.
+-->
 <script>
     const TOKEN = localStorage.getItem('oanda_token') ?? prompt('OANDA token:');
     if (TOKEN) localStorage.setItem('oanda_token', TOKEN);
@@ -355,6 +378,19 @@
         })
     }
 </script>
+<!--
+    Chart-painting helpers, used whenever a pair is (re)selected or refreshed.
+    - setChartData: pushes candle data into a series; when resetChart is true,
+      scrolls the time axis to show roughly the most recent 100 bars.
+    - setIndicator: takes the output of calculateOMS (below) and distributes
+      it across a chart's line/histogram/marker series - zigzag points,
+      protected high/low, entry line, market-state histograms split into
+      buy/sell/background, and buy/sell signal + take-profit markers.
+    - render: the main entry point called on selection change or on each poll
+      tick. Bails out until every pair/granularity has data loaded, updates
+      the sidebar's `.selected` row, then clears and repopulates all 4 charts
+      (one per granularity) from the cached allCandlesData for that pair.
+-->
 <script>
     const setChartData = (series, timeScale, data, resetChart = false) => {
         series.setData(data);
@@ -419,6 +455,19 @@
         }
     }
 </script>
+<!--
+    getCandles(pair, gran, count): fetches candle data from the OANDA v3 REST
+    API for one instrument/granularity pair (bid prices, Unix timestamps).
+    - On the initial call (count === 5000) it replaces the cached candle
+      array outright; on subsequent polls it merges each returned candle into
+      the existing array by time, updating in place or appending as needed.
+    - Recomputes the indicator via calculateOMS and stores the result
+      alongside the candles in allCandlesData, along with a
+      lastUpdatedTime timestamp used by the staleness timer.
+    - Updates that pair/granularity's sidebar badge classes: which side the
+      market state favors (buy/sell) and whether a setup is "ready" or has
+      "trigger"ed, based on the latest indicator values.
+-->
 <script>
     // the browser pools + keep-alives connections to OANDA automatically (HTTP/2)
     const getCandles = (pair, gran, count = 5000) => {
@@ -496,6 +545,34 @@
             });
     };
 </script>
+<!--
+    calculateOMS(candles): the core trading-signal indicator. Runs a single
+    pass over the candle array (needs at least 12 candles) using an 11-candle
+    (INDICATOR_PERIOD) rolling window centered on INDICATOR_MIDPT:
+    - Zigzag: flags the midpoint candle of the window as a pivot high/low
+      when it's the extreme of the window, and records it in zzPts whenever
+      it extends beyond the last zigzag point (zzState tracks trend
+      direction: 1 up, -1 down).
+    - Protected high/low: once a new zigzag pivot both breaks the prior
+      extreme and its close confirms it, promotes it to protectedHigh/
+      protectedLow and flips mktState (1 = bullish, -1 = bearish); the
+      opposite protected level is seeded from the prior zigzag point.
+    - Imbalance (fair value gap) zones: after a protected level updates,
+      scans back over the impulse leg for a 2-candle gap (candle i-2's high/
+      low vs candle i's low/high) in the direction of the trend and records
+      it as imbUpper/imbLower, marking the zone "fresh" (imbZoneFresh).
+    - Signal conditions, computed every candle: shouldBuy (trend is
+      bullish), correctZoneSize (the imbalance covers >=80% of the distance
+      to the protected level), freshZone (imbalance hasn't been touched),
+      imbInProtectedArea (the imbalance sits within the protected range),
+      and enteredImbZone (price just crossed into the imbalance this
+      candle). A "trigger" is all four conditions true simultaneously, which
+      consumes the zone's freshness and emits a signal arrow (signalsCandle),
+      a raw signal point (signals), and a take-profit marker (tp) sized off
+      the opposite protected level.
+    Returns all of the above per-candle series for the chart/indicator
+    painters to consume.
+-->
 <script>
     const calculateOMS = (candles) => {
         if (candles.length < 12) return;
@@ -698,6 +775,16 @@
         }
     }
 </script>
+<!--
+    Bootstraps and drives the data feed:
+    - On load, seeds an empty allCandlesData entry for every pair/granularity
+      combination and kicks off a full getCandles fetch for each.
+    - Every 5s thereafter, re-fetches all pair/granularity combinations
+      (getCandles is called with its default count of 5000 both here and on
+      first load, so every poll replaces the full cached candle array rather
+      than merging) and, if a pair is currently selected, re-renders its
+      charts without resetting the visible time range.
+-->
 <script>
     for (const pair of PAIRS) {
         for (const gran of GRAN) {
@@ -717,6 +804,14 @@
             render(document.querySelector('.pair-row.selected').id, false);
     }, 5000);
 </script>
+<!--
+    Staleness-timer loop, ticking every 500ms. For each pair, finds the
+    oldest lastUpdatedTime across its granularities and writes the elapsed
+    seconds into that row's .timer element, adding a "warning" class once
+    the data hasn't refreshed in 20+ seconds (a sign the 5s poll loop above
+    is stalled or failing, e.g. an expired OANDA token). No-ops until every
+    pair/granularity has been loaded at least once.
+-->
 <script>
     setInterval(() => {
         if (Object.keys(allCandlesData).length < PAIRS.length * GRAN.length) return;
@@ -735,6 +830,14 @@
         }
     }, 500);
 </script>
+<!--
+    createPairRows(): builds the sidebar's list of instrument rows, one per
+    entry in PAIRS. Each row shows the pair name (slash-separated), one
+    ".gran" badge per granularity in GRAN (colored/bordered later by
+    getCandles based on market state), and a staleness ".timer" element -
+    then injects the assembled HTML into #sidebar in one shot. Clicking a
+    row calls render(pair) via its inline onclick. Runs once immediately.
+-->
 <script>
     const createPairRows = () => {
         let htmlStr = '';
@@ -750,6 +853,13 @@
     }
     createPairRows();
 </script>
+<!--
+    Keyboard navigation: on ArrowDown/ArrowUp keyup, moves the sidebar
+    selection to the next/previous pair (wrapping around at either end) and
+    calls render(pair, true) to redraw the charts and reset their visible
+    time range. If nothing is selected yet, either key selects the first
+    pair in PAIRS instead of stepping relative to a selection.
+-->
 <script>
     window.addEventListener('keyup', (event) => {
         const selectDefault = () => {
