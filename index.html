@@ -911,7 +911,6 @@
     const sendTelegramMessage = async (pair, granArr = []) => {
         const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
         const text = `-- ${pair.replace('_','/')} -- [ ` + granArr.map(e => '<u>' + e + '</u>').join(' | ') + ' ]';
-        console.log(text);
         try {
             const response = await fetch(url, {
                 method: 'POST',
