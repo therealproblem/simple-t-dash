@@ -713,7 +713,8 @@
                 getCandles(pair, gran);
             }
         }
-        render(document.querySelector('.pair-row.selected').id, false);
+        if (document.querySelector('.pair-row.selected'))
+            render(document.querySelector('.pair-row.selected').id, false);
     }, 5000);
 </script>
 <script>
@@ -749,6 +750,42 @@
     }
     createPairRows();
 </script>
+<script>
+    window.addEventListener('keyup', (event) => {
+        const selectDefault = () => {
+            document.querySelector(`.pair-row#${PAIRS[0]}`).classList.add('selected');
+            return;
+        }
 
+        const select = (next = true) => {
+            const selectedPair = document.querySelector('.pair-row.selected');
+            if (selectedPair === null || selectedPair === undefined)
+                selectDefault();
+            else {
+                    const pairs = [...document.getElementsByClassName('pair-row')];
+                    const index = pairs.indexOf(selectedPair);
+                    selectedPair.classList.remove('selected');
+                if (next) {
+                    let nextIndex = index + 1;
+                    if (nextIndex == pairs.length)  nextIndex = 0;
+                    pairs[nextIndex].classList.add('selected');
+                } else {
+                    let nextIndex = index - 1;
+                    if (nextIndex == -1)  nextIndex = pairs.length - 1;
+                    pairs[nextIndex].classList.add('selected');
+                }
+            }
+        }
+
+        switch (event.key) {
+            case 'ArrowDown':
+                select(true);
+                break;
+            case 'ArrowUp':
+                select(false);
+                break;
+        }
+    });
+</script>
 
 </html>
