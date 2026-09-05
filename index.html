@@ -142,7 +142,8 @@
 
 <body>
     <div id="sidebar">
-
+        <div id="triggered"></div>
+        <div id="watchlist"></div>
     </div>
     <div id="charts">
         <div class="chart" id="2"></div>
@@ -181,6 +182,8 @@
         "USD_CAD", "USD_CHF", "USD_JPY",
         "XAG_USD", "XAU_USD"
     ];
+    const watchList = [];
+    const triggeredList = [];
     const MONTH = [
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
@@ -433,6 +436,7 @@
         if (Object.keys(allCandlesData).length < PAIRS.length * GRAN.length) return;
         Array.from(document.querySelectorAll('.pair-row')).map(e => e.classList.remove('selected'));
         document.querySelector(`.pair-row#${pair}`).classList.add('selected');
+        document.title = pair.replace('_','/');
         for (let i = 0; i < 4; i++) {
             const chartObj = chartObjects[i];
             const candlesData = allCandlesData[`${pair}_${GRAN[i]}`]['candles'];
