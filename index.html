@@ -34,11 +34,11 @@
             flex-direction: row;
             font-size: 16px;
             overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         .pair-row {
             color: white;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             font-size: 0.8rem;
             display: flex;
             margin: 2px 0px;
@@ -126,6 +126,25 @@
             overflow-y: scroll;
         }
 
+        #sidebar>#triggered-header {
+            background-color: dodgerblue;
+            font-weight: bold;
+            font-size: 0.8rem;
+            display: flex;
+            justify-content: center;
+            color: #000;
+        }
+
+        #sidebar #watchlist-header {
+            margin-top: 5px;
+            background-color: #fff;
+            font-weight: bold;
+            font-size: 0.8rem;
+            display: flex;
+            justify-content: center;
+            color: #000;
+        }
+
         #charts {
             display: flex;
             flex-wrap: wrap;
@@ -142,7 +161,9 @@
 
 <body>
     <div id="sidebar">
+        <div id="triggered-header">TRIGGERED</div>
         <div id="triggered"></div>
+        <div id="watchlist-header">WATCHLIST</div>
         <div id="watchlist"></div>
     </div>
     <div id="charts">
@@ -182,8 +203,7 @@
         "USD_CAD", "USD_CHF", "USD_JPY",
         "XAG_USD", "XAU_USD"
     ];
-    const watchList = [];
-    const triggeredList = [];
+    const watchList = Array.from(PAIRS, e => ({ name: e, triggeredTF: [] }));
     const MONTH = [
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
@@ -436,7 +456,7 @@
         if (Object.keys(allCandlesData).length < PAIRS.length * GRAN.length) return;
         Array.from(document.querySelectorAll('.pair-row')).map(e => e.classList.remove('selected'));
         document.querySelector(`.pair-row#${pair}`).classList.add('selected');
-        document.title = pair.replace('_','/');
+        document.title = pair.replace('_', '/');
         for (let i = 0; i < 4; i++) {
             const chartObj = chartObjects[i];
             const candlesData = allCandlesData[`${pair}_${GRAN[i]}`]['candles'];
@@ -738,7 +758,6 @@
 
             const trigger = _correctZoneSize && _freshZone && _imbInProtectedArea && _enteredImbZone;
             if (_enteredImbZone) imbZoneFresh[i].value = -1;
-
             if (trigger) {
                 signalsCandle.push({
                     time: candles[i].time,
@@ -804,8 +823,6 @@
                 getCandles(pair, gran);
             }
         }
-        if (document.querySelector('.pair-row.selected'))
-            render(document.querySelector('.pair-row.selected').id, false);
     }, 5000);
 </script>
 <!--
@@ -817,6 +834,15 @@
     pair/granularity has been loaded at least once.
 -->
 <script>
+    const sortList = () => {
+        const triggeredElmList = document.querySelectorAll('.pair-row:has(> .gran.triggered)');
+        const elmList = document.querySelectorAll('.pair-row:not(:has(> .gran.triggered))');
+        const triggeredHTML = Array.from(triggeredElmList).map(node => node.outerHTML).join('');
+        const watchlistHTML = Array.from(elmList).map(node => node.outerHTML).join('');
+        document.querySelector('#sidebar > #triggered').innerHTML = triggeredHTML;
+        document.querySelector('#sidebar > #watchlist').innerHTML = watchlistHTML;
+    }
+
     setInterval(() => {
         if (Object.keys(allCandlesData).length < PAIRS.length * GRAN.length) return;
         for (const pair of PAIRS) {
@@ -832,6 +858,7 @@
             timerElm.classList.remove('warning');
             if (elaspedTime >= 20) timerElm.classList.add('warning');
         }
+        sortList();
     }, 500);
 </script>
 <!--
@@ -853,7 +880,7 @@
             htmlStr += `<div class="timer">0s</div>`;
             htmlStr += `</div>`;
         }
-        document.getElementById("sidebar").innerHTML = htmlStr;
+        document.querySelector("#sidebar #watchlist").innerHTML = htmlStr;
     }
     createPairRows();
 </script>
