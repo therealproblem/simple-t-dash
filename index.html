@@ -754,25 +754,28 @@
     window.addEventListener('keyup', (event) => {
         const selectDefault = () => {
             document.querySelector(`.pair-row#${PAIRS[0]}`).classList.add('selected');
+            render(PAIRS[0], true);
             return;
         }
 
         const select = (next = true) => {
             const selectedPair = document.querySelector('.pair-row.selected');
-            if (selectedPair === null || selectedPair === undefined)
+            if (selectedPair === null || selectedPair === undefined) {
                 selectDefault();
-            else {
-                    const pairs = [...document.getElementsByClassName('pair-row')];
-                    const index = pairs.indexOf(selectedPair);
-                    selectedPair.classList.remove('selected');
+            } else {
+                const pairs = [...document.getElementsByClassName('pair-row')];
+                const index = pairs.indexOf(selectedPair);
+                selectedPair.classList.remove('selected');
                 if (next) {
                     let nextIndex = index + 1;
-                    if (nextIndex == pairs.length)  nextIndex = 0;
+                    if (nextIndex == pairs.length) nextIndex = 0;
                     pairs[nextIndex].classList.add('selected');
+                    render(pairs[nextIndex].id, true);
                 } else {
                     let nextIndex = index - 1;
-                    if (nextIndex == -1)  nextIndex = pairs.length - 1;
+                    if (nextIndex == -1) nextIndex = pairs.length - 1;
                     pairs[nextIndex].classList.add('selected');
+                    render(pairs[nextIndex].id, true);
                 }
             }
         }
