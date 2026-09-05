@@ -203,7 +203,6 @@
         "USD_CAD", "USD_CHF", "USD_JPY",
         "XAG_USD", "XAU_USD"
     ];
-    const watchList = Array.from(PAIRS, e => ({ name: e, triggeredTF: [] }));
     const MONTH = [
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
@@ -402,17 +401,20 @@
     }
 </script>
 <!--
-    Chart-painting helpers, used whenever a pair is (re)selected or refreshed.
+    Chart-painting helpers, used whenever a pair is (re)selected.
     - setChartData: pushes candle data into a series; when resetChart is true,
       scrolls the time axis to show roughly the most recent 100 bars.
     - setIndicator: takes the output of calculateOMS (below) and distributes
       it across a chart's line/histogram/marker series - zigzag points,
       protected high/low, entry line, market-state histograms split into
       buy/sell/background, and buy/sell signal + take-profit markers.
-    - render: the main entry point called on selection change or on each poll
-      tick. Bails out until every pair/granularity has data loaded, updates
-      the sidebar's `.selected` row, then clears and repopulates all 4 charts
-      (one per granularity) from the cached allCandlesData for that pair.
+    - render: the main entry point, called on row click and keyboard
+      navigation only (the 5s poll loop below no longer calls it, so an open
+      chart doesn't auto-refresh - see that script's comment). Bails out
+      until every pair/granularity has data loaded, updates the sidebar's
+      `.selected` row and the document title (pair name, slash-separated),
+      then clears and repopulates all 4 charts (one per granularity) from
+      the cached allCandlesData for that pair.
 -->
 <script>
     const setChartData = (series, timeScale, data, resetChart = false) => {
@@ -805,8 +807,10 @@
     - Every 5s thereafter, re-fetches all pair/granularity combinations
       (getCandles is called with its default count of 5000 both here and on
       first load, so every poll replaces the full cached candle array rather
-      than merging) and, if a pair is currently selected, re-renders its
-      charts without resetting the visible time range.
+      than merging). This only refreshes each pair's sidebar badges via
+      getCandles - it does not call render(), so a chart already on screen
+      keeps showing the data it had when its pair was selected until you
+      reselect it.
 -->
 <script>
     for (const pair of PAIRS) {
@@ -826,12 +830,20 @@
     }, 5000);
 </script>
 <!--
+    sortList(): re-partitions the sidebar rows between the #triggered and
+    #watchlist containers, based on whether a row has a child
+    ".gran.triggered" element, by rebuilding each container's innerHTML from
+    the matching rows' outerHTML. NOTE: getCandles (above) only ever adds a
+    "trigger" class (no "-ed"), so ".gran.triggered" never matches - every
+    row currently lands in #watchlist regardless of trigger state.
+
     Staleness-timer loop, ticking every 500ms. For each pair, finds the
     oldest lastUpdatedTime across its granularities and writes the elapsed
     seconds into that row's .timer element, adding a "warning" class once
     the data hasn't refreshed in 20+ seconds (a sign the 5s poll loop above
-    is stalled or failing, e.g. an expired OANDA token). No-ops until every
-    pair/granularity has been loaded at least once.
+    is stalled or failing, e.g. an expired OANDA token), then calls
+    sortList() to re-sort the sidebar. No-ops until every pair/granularity
+    has been loaded at least once.
 -->
 <script>
     const sortList = () => {
@@ -866,8 +878,10 @@
     entry in PAIRS. Each row shows the pair name (slash-separated), one
     ".gran" badge per granularity in GRAN (colored/bordered later by
     getCandles based on market state), and a staleness ".timer" element -
-    then injects the assembled HTML into #sidebar in one shot. Clicking a
-    row calls render(pair) via its inline onclick. Runs once immediately.
+    then injects the assembled HTML into the #watchlist container in one
+    shot (sortList, above, later redistributes rows into #triggered).
+    Clicking a row calls render(pair) via its inline onclick. Runs once
+    immediately.
 -->
 <script>
     const createPairRows = () => {
