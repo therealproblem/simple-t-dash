@@ -937,8 +937,8 @@
     const sortList = () => {
         const triggeredElmList = document.querySelectorAll('.pair-row:has(> .gran.trigger)');
         const elmList = document.querySelectorAll('.pair-row:not(:has(> .gran.trigger))');
-        const triggeredHTML = Array.from(triggeredElmList).map(node => node.outerHTML).join('');
-        const watchlistHTML = Array.from(elmList).map(node => node.outerHTML).join('');
+        const triggeredHTML = Array.from(triggeredElmList).sort((a, b) => a.id.localeCompare(b.id)).map(node => node.outerHTML).join('');
+        const watchlistHTML = Array.from(elmList).sort((a, b) => a.id.localeCompare(b.id)).map(node => node.outerHTML).join('');
         document.querySelector('#sidebar > #triggered').innerHTML = triggeredHTML;
         document.querySelector('#sidebar > #watchlist').innerHTML = watchlistHTML;
     }
