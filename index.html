@@ -575,29 +575,40 @@
                 allCandlesData[key]['lastUpdatedTime'] = Math.floor(Date.now() / 1000); //unix time
                 const indicatorData = calculateOMS(candlesData);
                 allCandlesData[key]['indicators'] = indicatorData;
-                const {
-                    shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
-                } = indicatorData;
-                const granElm = document.querySelector(`.pair-row#${pair} > .gran.${gran}`);
-
-                //reset
-                granElm.classList.remove('mkt_state_sell');
-                granElm.classList.remove('mkt_state_buy');
-                granElm.classList.remove('trigger');
-                granElm.classList.remove('ready');
-
-                // set market state
-                granElm.classList.add(`mkt_state_${shouldBuy.at(-1).value ? 'buy' : 'sell'}`);
-
-                // set trigger & ready
-                const readyCond = correctZoneSize.at(-1).value && freshZone.at(-1).value && imbInProtectedArea.at(-1).value;
-                const triggerCond = readyCond && enteredImbZone.at(-1).value;
-                if (triggerCond) granElm.classList.add(`trigger`);
-                else if (readyCond) granElm.classList.add('ready');
-
+                updatePairRows(pair, gran);
                 return candles;
             });
     };
+
+    const updatePairRows = (pair, gran) => {
+        const key = `${pair}_${gran}`;
+        const indicatorData = allCandlesData[key]['indicators'];
+        const {
+            shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone, signalsCandle
+        } = indicatorData;
+        const pairElm = document.querySelector(`.pair-row#${pair}`);
+        const granElm = document.querySelector(`.pair-row#${pair} > .gran.${gran}`);
+
+        //reset
+        granElm.classList.remove('mkt_state_sell');
+        granElm.classList.remove('mkt_state_buy');
+        granElm.classList.remove('trigger');
+        granElm.classList.remove('ready');
+
+        // set last triggered time
+        granElm.setAttribute('data-time', signalsCandle.at(-1).time);
+        const allGransLastTriggeredTime = [...Array.from(pairElm.querySelectorAll('.gran')).map(e => parseInt(e.getAttribute('data-time') ?? 0))];
+        pairElm.setAttribute('data-time', Math.max(...allGransLastTriggeredTime));
+
+        // set market state
+        granElm.classList.add(`mkt_state_${shouldBuy.at(-1).value ? 'buy' : 'sell'}`);
+
+        // set trigger & ready
+        const readyCond = correctZoneSize.at(-1).value && freshZone.at(-1).value && imbInProtectedArea.at(-1).value;
+        const triggerCond = readyCond && enteredImbZone.at(-1).value;
+        if (triggerCond) granElm.classList.add(`trigger`);
+        else if (readyCond) granElm.classList.add('ready');
+    }
 </script>
 <!--
     calculateOMS(candles): the core trading-signal indicator. Runs a single
@@ -829,36 +840,6 @@
     }
 </script>
 <!--
-    Bootstraps and drives the data feed:
-    - On load, seeds an empty allCandlesData entry for every pair/granularity
-      combination and kicks off a full getCandles fetch for each.
-    - Every 5s thereafter, re-fetches all pair/granularity combinations
-      (getCandles is called with its default count of 5000 both here and on
-      first load, so every poll replaces the full cached candle array rather
-      than merging), then, if a pair is currently selected, calls
-      render(pair, false) to repaint its charts with the fresh data without
-      resetting the visible time range.
--->
-<script>
-    for (const pair of PAIRS) {
-        for (const gran of GRAN) {
-            const key = `${pair}_${gran}`;
-            const lastUpdatedTime = Math.floor(Date.now() / 1000);
-            allCandlesData[key] = { candles: [], indicators: {}, lastUpdatedTime };
-            getCandles(pair, gran);
-        }
-    }
-    setInterval(() => {
-        for (const pair of PAIRS) {
-            for (const gran of GRAN) {
-                getCandles(pair, gran);
-            }
-        }
-        const selectedPair = document.querySelector('.pair-row.selected');
-        if (selectedPair != null && selectedPair != undefined) render(selectedPair.id, false);
-    }, 5000);
-</script>
-<!--
     Trigger notifications, sidebar sorting, and the staleness-timer loop -
     three concerns sharing one setInterval tick every 500ms.
     - checkIfNeedNotification(): diffs the pairs currently showing a
@@ -958,8 +939,10 @@
     const sortList = () => {
         const triggeredElmList = document.querySelectorAll('.pair-row:has(> .gran.trigger)');
         const elmList = document.querySelectorAll('.pair-row:not(:has(> .gran.trigger))');
-        const triggeredHTML = Array.from(triggeredElmList).sort((a, b) => a.id.localeCompare(b.id)).map(node => node.outerHTML).join('');
-        const watchlistHTML = Array.from(elmList).sort((a, b) => a.id.localeCompare(b.id)).map(node => node.outerHTML).join('');
+        const triggeredHTML = Array.from(triggeredElmList).sort((a, b) =>
+            parseInt(b.getAttribute('data-time')) - parseInt(a.getAttribute('data-time'))).map(node => node.outerHTML).join('');
+        const watchlistHTML = Array.from(elmList).sort((a, b) =>
+            parseInt(b.getAttribute('data-time')) - parseInt(a.getAttribute('data-time'))).map(node => node.outerHTML).join('');
         document.querySelector('#sidebar > #triggered').innerHTML = triggeredHTML;
         document.querySelector('#sidebar > #watchlist').innerHTML = watchlistHTML;
     }
@@ -979,9 +962,40 @@
             timerElm.classList.remove('warning');
             if (elaspedTime >= 20) timerElm.classList.add('warning');
         }
+    }, 500);
+</script>
+<!--
+    Bootstraps and drives the data feed:
+    - On load, seeds an empty allCandlesData entry for every pair/granularity
+      combination and kicks off a full getCandles fetch for each.
+    - Every 5s thereafter, re-fetches all pair/granularity combinations
+      (getCandles is called with its default count of 5000 both here and on
+      first load, so every poll replaces the full cached candle array rather
+      than merging), then, if a pair is currently selected, calls
+      render(pair, false) to repaint its charts with the fresh data without
+      resetting the visible time range.
+-->
+<script>
+    for (const pair of PAIRS) {
+        for (const gran of GRAN) {
+            const key = `${pair}_${gran}`;
+            const lastUpdatedTime = Math.floor(Date.now() / 1000);
+            allCandlesData[key] = { candles: [], indicators: {}, lastUpdatedTime };
+            getCandles(pair, gran);
+        }
+    }
+    setInterval(() => {
+        for (const pair of PAIRS) {
+            for (const gran of GRAN) {
+                getCandles(pair, gran);
+            }
+        }
+        const selectedPair = document.querySelector('.pair-row.selected');
+        if (selectedPair != null && selectedPair != undefined) render(selectedPair.id, false);
+
         sortList();
         checkIfNeedNotification();
-    }, 500);
+    }, 5000);
 </script>
 <!--
     createPairRows(): builds the sidebar's list of instrument rows, one per
