@@ -412,16 +412,16 @@
       it across a chart's line/histogram/marker series - zigzag points,
       protected high/low, entry line, market-state histograms split into
       buy/sell/background, and buy/sell signal + take-profit markers.
-    - render: the main entry point, called on row click and keyboard
-      navigation only (the 5s poll loop below no longer calls it, so an open
-      chart doesn't auto-refresh - see that script's comment). Bails out
-      until every pair/granularity has data loaded, updates the sidebar's
-      `.selected` row and the document title (pair name, slash-separated),
-      applies each chart's candlestick priceFormat from that pair/
-      granularity's cached precision (see getCandles) so the price axis
-      shows the right number of decimals per instrument, then clears and
-      repopulates all 4 charts (one per granularity) from the cached
-      allCandlesData for that pair.
+    - render: the main entry point, called on row click, keyboard
+      navigation, and the 5s poll loop below (which re-renders whichever
+      pair is currently selected once its data refreshes - see that
+      script's comment). Bails out until every pair/granularity has data
+      loaded, updates the sidebar's `.selected` row and the document title
+      (pair name, slash-separated), applies each chart's candlestick
+      priceFormat from that pair/granularity's cached precision (see
+      getCandles) so the price axis shows the right number of decimals per
+      instrument, then clears and repopulates all 4 charts (one per
+      granularity) from the cached allCandlesData for that pair.
 -->
 <script>
     const setChartData = (series, timeScale, data, resetChart = false) => {
@@ -835,10 +835,9 @@
     - Every 5s thereafter, re-fetches all pair/granularity combinations
       (getCandles is called with its default count of 5000 both here and on
       first load, so every poll replaces the full cached candle array rather
-      than merging). This only refreshes each pair's sidebar badges via
-      getCandles - it does not call render(), so a chart already on screen
-      keeps showing the data it had when its pair was selected until you
-      reselect it.
+      than merging), then, if a pair is currently selected, calls
+      render(pair, false) to repaint its charts with the fresh data without
+      resetting the visible time range.
 -->
 <script>
     for (const pair of PAIRS) {
@@ -874,19 +873,15 @@
     - sortList(): re-partitions the sidebar rows between the #triggered and
       #watchlist containers based on whether a row has a child
       ".gran.trigger" element (matching the class getCandles, above,
-      actually sets), rebuilding each container's innerHTML from the
-      matching rows' outerHTML.
+      actually sets), sorting each group alphabetically by pair id before
+      rebuilding that container's innerHTML from the matching rows'
+      outerHTML.
     - The setInterval also does the original job: for each pair, find the
       oldest lastUpdatedTime across its granularities, write the elapsed
       seconds into that row's .timer element, and add a "warning" class
       once it's 20+ seconds stale (a sign the 5s poll loop above is
       stalled, e.g. an expired OANDA token). No-ops until every
       pair/granularity has been loaded at least once.
-    - Remaining rough edge: inside checkIfNeedNotification's loop, granArr
-      is queried sidebar-wide (all ".gran.trigger" elements) rather than
-      scoped to `pair`, so if more than one pair triggers in the same
-      tick, every message sent that tick lists the combined set of
-      granularities instead of just that pair's own.
 -->
 <script>
     let prevTriggeredList = [];
@@ -1014,10 +1009,10 @@
     createPairRows();
 </script>
 <!--
-    Keyboard navigation: on ArrowDown/ArrowUp keyup, moves the sidebar
+    Keyboard navigation: on ArrowDown/ArrowUp keydown, moves the sidebar
     selection to the next/previous pair (wrapping around at either end). The
     `.selected` class moves immediately each keystroke, but the actual
-    render(pair, true) is debounced 150ms so holding/repeating the key only
+    render(pair, true) is debounced 300ms so holding/repeating the key only
     repaints charts once, for the pair the user finally lands on. If nothing
     is selected yet, either key selects the first pair in PAIRS instead of
     stepping relative to a selection.
