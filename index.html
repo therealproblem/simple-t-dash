@@ -873,7 +873,7 @@
         if (newPairs.length > 0) {
             playTripleClick();
             for (const pair of newPairs) {
-                const granArr = Array.from(document.querySelectorAll('.pair-row > .gran.trigger')).map(e => e.innerText);
+                const granArr = Array.from(document.querySelectorAll(`.pair-row#${pair} > .gran.trigger`)).map(e => e.innerText);
                 sendTelegramMessage(pair, granArr);
             }
         }
