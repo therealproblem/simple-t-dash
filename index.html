@@ -417,8 +417,11 @@
       chart doesn't auto-refresh - see that script's comment). Bails out
       until every pair/granularity has data loaded, updates the sidebar's
       `.selected` row and the document title (pair name, slash-separated),
-      then clears and repopulates all 4 charts (one per granularity) from
-      the cached allCandlesData for that pair.
+      applies each chart's candlestick priceFormat from that pair/
+      granularity's cached precision (see getCandles) so the price axis
+      shows the right number of decimals per instrument, then clears and
+      repopulates all 4 charts (one per granularity) from the cached
+      allCandlesData for that pair.
 -->
 <script>
     const setChartData = (series, timeScale, data, resetChart = false) => {
@@ -465,8 +468,10 @@
         document.title = pair.replace('_', '/');
         for (let i = 0; i < 4; i++) {
             const chartObj = chartObjects[i];
-            const candlesData = allCandlesData[`${pair}_${GRAN[i]}`]['candles'];
-            const indicatorData = allCandlesData[`${pair}_${GRAN[i]}`]['indicators'];
+            const key = `${pair}_${GRAN[i]}`;
+            const candlesData = allCandlesData[key]['candles'];
+            const indicatorData = allCandlesData[key]['indicators'];
+            const precision = allCandlesData[key]['precision'] ?? 5;
 
             // reset
             chartObj.lines[0].setData([]);
@@ -479,6 +484,14 @@
             chartObj.markers[0].setMarkers([])
             chartObj.markers[1].setMarkers([])
             chartObj.markers[2].setMarkers([])
+
+            chartObj.series.applyOptions({
+                priceFormat: {
+                    type: 'price',
+                    precision,
+                    minMove: 1 / (10 ** precision)
+                }
+            });
 
             setChartData(chartObj.series, chartObj.timeScale, candlesData, reset);
             setIndicator(chartObj.chart, chartObj.series, chartObj.lines, chartObj.hists, chartObj.markers, indicatorData);
@@ -494,6 +507,10 @@
     - Recomputes the indicator via calculateOMS and stores the result
       alongside the candles in allCandlesData, along with a
       lastUpdatedTime timestamp used by the staleness timer.
+    - Derives that instrument's decimal precision from the raw bid-close
+      strings (OANDA pads each instrument to a fixed number of decimals, e.g.
+      "1.09456" vs "156.789") and caches it as `precision`, so render (above)
+      can format each chart's price axis correctly per pair.
     - Updates that pair/granularity's sidebar badge classes: which side the
       market state favors (buy/sell) and whether a setup is "ready" or has
       "trigger"ed, based on the latest indicator values.
@@ -518,16 +535,22 @@
                 if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
                 return res.json();
             })
-            .then(({ candles }) => candles.map(e => ({
-                volume: e.volume,
-                complete: e.complete,
-                time: parseInt(e.time),
-                open: +e.bid.o,
-                high: +e.bid.h,
-                low: +e.bid.l,
-                close: +e.bid.c
-            })))
-            .then(candles => {
+            .then(({ candles }) => ({
+                // OANDA prices are fixed-width decimal strings per instrument
+                // (e.g. "1.09456" vs "156.789"), so this reflects that pair's
+                // real display precision instead of guessing from the pair name.
+                precision: candles.reduce((max, e) => Math.max(max, (e.bid.c.split('.')[1] || '').length), 0),
+                candles: candles.map(e => ({
+                    volume: e.volume,
+                    complete: e.complete,
+                    time: parseInt(e.time),
+                    open: +e.bid.o,
+                    high: +e.bid.h,
+                    low: +e.bid.l,
+                    close: +e.bid.c
+                }))
+            }))
+            .then(({ candles, precision }) => {
                 const key = `${pair}_${gran}`;
                 let candlesData = [];
                 if (count === 5000) {
@@ -548,6 +571,7 @@
                     }
                 }
                 allCandlesData[key]['candles'] = candlesData;
+                if (precision > 0) allCandlesData[key]['precision'] = precision;
                 allCandlesData[key]['lastUpdatedTime'] = Math.floor(Date.now() / 1000); //unix time
                 const indicatorData = calculateOMS(candlesData);
                 allCandlesData[key]['indicators'] = indicatorData;
