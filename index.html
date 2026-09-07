@@ -409,8 +409,8 @@
     - setChartData: pushes candle data into a series; when resetChart is true,
       scrolls the time axis to show roughly the most recent 100 bars.
     - setIndicator: takes the output of calculateOMS (below) and distributes
-      it across a chart's line/histogram/marker series - zigzag points,
-      protected high/low, entry line, market-state histograms split into
+      it across a chart's line/histogram/marker series - protected high/low,
+      entry line, market-state histograms split into
       buy/sell/background, and buy/sell signal + take-profit markers.
     - render: the main entry point, called on row click, keyboard
       navigation, and the 5s poll loop below (which re-renders whichever
