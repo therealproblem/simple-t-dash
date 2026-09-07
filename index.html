@@ -855,6 +855,8 @@
                 getCandles(pair, gran);
             }
         }
+        const selectedPair = document.querySelector('.pair-row.selected');
+        if (selectedPair != null && selectedPair != undefined) render(selectedPair.id, false);
     }, 5000);
 </script>
 <!--
