@@ -511,9 +511,15 @@
       strings (OANDA pads each instrument to a fixed number of decimals, e.g.
       "1.09456" vs "156.789") and caches it as `precision`, so render (above)
       can format each chart's price axis correctly per pair.
-    - Updates that pair/granularity's sidebar badge classes: which side the
-      market state favors (buy/sell) and whether a setup is "ready" or has
-      "trigger"ed, based on the latest indicator values.
+    - Delegates to updatePairRows(pair, gran) to sync that granularity's
+      sidebar badge from the fresh indicator values.
+
+    updatePairRows(pair, gran): sets one pair/granularity's ".gran" badge
+    classes from its cached indicator values - which side the market state
+    favors (buy/sell) and whether a setup is "ready" or has "trigger"ed -
+    then stamps that badge's `data-time` with its latest signal candle's
+    time and rolls the pair row's own `data-time` up to the max across all
+    of that pair's granularities, which sortList (below) sorts on.
 -->
 <script>
     // the browser pools + keep-alives connections to OANDA automatically (HTTP/2)
@@ -840,8 +846,9 @@
     }
 </script>
 <!--
-    Trigger notifications, sidebar sorting, and the staleness-timer loop -
-    three concerns sharing one setInterval tick every 500ms.
+    Defines the trigger-notification and sidebar-sorting helpers - called
+    from the 5s poll loop below, not from this block's own interval - plus
+    the staleness-timer loop itself.
     - checkIfNeedNotification(): diffs the pairs currently showing a
       ".gran.trigger" badge against the previous tick's list
       (prevTriggeredList); for each newly-triggered pair it plays
@@ -853,16 +860,16 @@
       name and its triggered granularities, HTML-underlined.
     - sortList(): re-partitions the sidebar rows between the #triggered and
       #watchlist containers based on whether a row has a child
-      ".gran.trigger" element (matching the class getCandles, above,
-      actually sets), sorting each group alphabetically by pair id before
-      rebuilding that container's innerHTML from the matching rows'
-      outerHTML.
-    - The setInterval also does the original job: for each pair, find the
-      oldest lastUpdatedTime across its granularities, write the elapsed
-      seconds into that row's .timer element, and add a "warning" class
-      once it's 20+ seconds stale (a sign the 5s poll loop above is
-      stalled, e.g. an expired OANDA token). No-ops until every
-      pair/granularity has been loaded at least once.
+      ".gran.trigger" element (matching the class updatePairRows, above,
+      actually sets), sorting each group by `data-time` descending (most
+      recently triggered/ready pair first) before rebuilding that
+      container's innerHTML from the matching rows' outerHTML.
+    - This block's own setInterval (500ms) only runs the staleness timer:
+      for each pair, find the latest lastUpdatedTime across its
+      granularities, write the elapsed seconds into that row's .timer
+      element, and add a "warning" class once it's 20+ seconds stale (a
+      sign the 5s poll loop below is stalled, e.g. an expired OANDA token).
+      No-ops until every pair/granularity has been loaded at least once.
 -->
 <script>
     let prevTriggeredList = [];
@@ -973,7 +980,9 @@
       first load, so every poll replaces the full cached candle array rather
       than merging), then, if a pair is currently selected, calls
       render(pair, false) to repaint its charts with the fresh data without
-      resetting the visible time range.
+      resetting the visible time range, then calls sortList() and
+      checkIfNeedNotification() (both defined above) to resort the sidebar
+      by trigger state/recency and fire any new trigger alerts.
 -->
 <script>
     for (const pair of PAIRS) {
