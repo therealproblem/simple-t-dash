@@ -45,6 +45,8 @@
             padding: 2px 5px;
             align-items: center;
             cursor: pointer;
+            overflow: hidden;
+            height: 1rem;
         }
 
         .pair-row.selected {
@@ -155,6 +157,20 @@
         .chart {
             width: 50%;
             height: 50vh;
+        }
+
+        .last-trigger-type {
+            color: transparent;
+            font-size: 1.5rem;
+            margin-left: 5px;
+        }
+
+        .last-trigger-type.buy {
+            color: lime;
+        }
+
+        .last-trigger-type.sell {
+            color: pink;
         }
     </style>
 </head>
@@ -519,7 +535,10 @@
     favors (buy/sell) and whether a setup is "ready" or has "trigger"ed -
     then stamps that badge's `data-time` with its latest signal candle's
     time and rolls the pair row's own `data-time` up to the max across all
-    of that pair's granularities, which sortList (below) sorts on.
+    of that pair's granularities, which sortList (below) sorts on. Also
+    colors the row's ".last-trigger-type" glyph lime/pink (buy/sell) to
+    match the signalsCandle shape (arrowUp/arrowDown) of whichever
+    granularity produced that latest `data-time`.
 -->
 <script>
     // the browser pools + keep-alives connections to OANDA automatically (HTTP/2)
@@ -594,17 +613,25 @@
         } = indicatorData;
         const pairElm = document.querySelector(`.pair-row#${pair}`);
         const granElm = document.querySelector(`.pair-row#${pair} > .gran.${gran}`);
+        const lastTriggerType = pairElm.querySelector('.last-trigger-type');
 
         //reset
         granElm.classList.remove('mkt_state_sell');
         granElm.classList.remove('mkt_state_buy');
         granElm.classList.remove('trigger');
         granElm.classList.remove('ready');
+        lastTriggerType.classList.remove('buy');
+        lastTriggerType.classList.remove('sell');
 
         // set last triggered time
         granElm.setAttribute('data-time', signalsCandle.at(-1).time);
         const allGransLastTriggeredTime = [...Array.from(pairElm.querySelectorAll('.gran')).map(e => parseInt(e.getAttribute('data-time') ?? 0))];
-        pairElm.setAttribute('data-time', Math.max(...allGransLastTriggeredTime));
+        const latestTriggeredTime = Math.max(...allGransLastTriggeredTime);
+        pairElm.setAttribute('data-time', latestTriggeredTime);
+        
+        // set last trigger type
+        const lastTriggeredGran = pairElm.querySelector(`.gran[data-time="${latestTriggeredTime}"]`).innerText;
+        lastTriggerType.classList.add(allCandlesData[`${pair}_${lastTriggeredGran}`]['indicators']['signalsCandle'].at(-1).shape == 'arrowUp' ? 'buy' : 'sell');
 
         // set market state
         granElm.classList.add(`mkt_state_${shouldBuy.at(-1).value ? 'buy' : 'sell'}`);
@@ -1008,19 +1035,21 @@
 </script>
 <!--
     createPairRows(): builds the sidebar's list of instrument rows, one per
-    entry in PAIRS. Each row shows the pair name (slash-separated), one
-    ".gran" badge per granularity in GRAN (colored/bordered later by
-    getCandles based on market state), and a staleness ".timer" element -
-    then injects the assembled HTML into the #watchlist container in one
-    shot (sortList, above, later redistributes rows into #triggered).
-    Clicking a row calls render(pair) via its inline onclick. Runs once
-    immediately.
+    entry in PAIRS. Each row shows the pair name (slash-separated), a
+    ".last-trigger-type" glyph (colored later by updatePairRows to show
+    the direction of that pair's most recent trigger), one ".gran" badge
+    per granularity in GRAN (also colored/bordered by updatePairRows based
+    on market state), and a staleness ".timer" element - then injects the
+    assembled HTML into the #watchlist container in one shot (sortList,
+    above, later redistributes rows into #triggered). Clicking a row calls
+    render(pair) via its inline onclick. Runs once immediately.
 -->
 <script>
     const createPairRows = () => {
         let htmlStr = '';
         for (const pair of PAIRS) {
             htmlStr += `<div class="pair-row" id="${pair}" onclick="render('${pair}')"><div class="name">${pair.replace('_', '/')}</div>`;
+            htmlStr += `<div class="last-trigger-type">▮</div>`;
             for (const gran of GRAN) {
                 htmlStr += `<div class="gran ${gran}">${gran}</div>`;
             }
