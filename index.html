@@ -31,10 +31,42 @@
             height: 100%;
             background: #000;
             display: flex;
-            flex-direction: row;
+            flex-direction: column;
             font-size: 16px;
             overflow: hidden;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            height: 30px;
+            padding: 0 20px;
+            align-items: center;
+        }
+
+        #telegram {
+            opacity: 0.3;
+            cursor: pointer;
+        }
+
+        #telegram.on {
+            opacity: 1.0;
+        }
+
+        #notif {
+            opacity: 0.3;
+            cursor: pointer;
+        }
+
+        #notif.on {
+            opacity: 1.0;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: row;
+            height: calc(100vh - 31px);
         }
 
         .pair-row {
@@ -125,7 +157,7 @@
 
         #sidebar {
             width: 250px;
-            height: 100vh;
+            height: 100%;
             overflow-y: scroll;
         }
 
@@ -149,15 +181,16 @@
         }
 
         #charts {
+            border-top: 1px solid white;
             display: flex;
             flex-wrap: wrap;
             width: calc(100vw - 250px);
-            height: 100vh;
+            height: 100%;
         }
 
         .chart {
             width: 50%;
-            height: 50vh;
+            height: 50%;
         }
 
         .last-trigger-type {
@@ -177,17 +210,35 @@
 </head>
 
 <body>
-    <div id="sidebar">
-        <div id="triggered-header">TRIGGERED</div>
-        <div id="triggered"></div>
-        <div id="watchlist-header">WATCHLIST</div>
-        <div id="watchlist"></div>
+    <div class="header">
+        <div class="left">
+
+        </div>
+        <div class="right">
+            <svg class="on" id="telegram" onclick="toggle(this)" xmlns="http://www.w3.org/2000/svg" height="24px"
+                viewBox="0 -960 960 960" width="20px" fill="dodgerblue">
+                <path d="M120-160v-640l760 320-760 320Zm80-120 474-200-474-200v140l240 60-240 60v140Zm0 0v-400 400Z" />
+            </svg>
+            <svg class="on" id="notif" onclick="toggle(this)" xmlns="http://www.w3.org/2000/svg" height="24px"
+                viewBox="0 -960 960 960" width="20px" fill="lime">
+                <path
+                    d="M501-500ZM480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM160-200v-80h80v-280q0-83 50-147.5T420-792v-28q0-25 17.5-42.5T480-880q25 0 42.5 17.5T540-820v28q29 7 53.5 20.5T639-740l-57 57q-21-17-47-27t-55-10q-66 0-113 47t-47 113v280h480v80H160Zm496-219-56-57q10-10 15-24t5-32q0-18-5-32.5T600-589l56-56q21 21 32.5 50t11.5 63q0 34-11.5 63T656-419Zm43 43q29-29 45-70t16-86q0-45-16-86t-45-70l57-56q41 41 62.5 95.5T840-532q0 62-21.5 116.5T756-320l-57-56Z" />
+            </svg>
+        </div>
     </div>
-    <div id="charts">
-        <div class="chart" id="2"></div>
-        <div class="chart" id="4"></div>
-        <div class="chart" id="1"></div>
-        <div class="chart" id="3"></div>
+    <div class="container">
+        <div id="sidebar">
+            <div id="triggered-header">TRIGGERED</div>
+            <div id="triggered"></div>
+            <div id="watchlist-header">WATCHLIST</div>
+            <div id="watchlist"></div>
+        </div>
+        <div id="charts">
+            <div class="chart" id="2"></div>
+            <div class="chart" id="4"></div>
+            <div class="chart" id="1"></div>
+            <div class="chart" id="3"></div>
+        </div>
     </div>
 </body>
 <!--
@@ -929,6 +980,7 @@
     }
 
     const playTripleClick = () => {
+        if (!document.querySelector('#notif').contains('on')) return;
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
         const triggerClick = (delayMs) => {
@@ -958,6 +1010,7 @@
     }
 
     const sendTelegramMessage = async (pair, granArr = []) => {
+        if (!document.querySelector('#telegram').classList.contains('on')) return;
         const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
         const text = `-- ${pair.replace('_', '/')} -- [ ` + granArr.map(e => '<u>' + e + '</u>').join(' | ') + ' ]';
         try {
@@ -1176,6 +1229,11 @@
         }
     }
     setupSyncCrosshair();
+</script>
+<script>
+    const toggle = (element) => {
+        element.classList.toggle('on');
+    }
 </script>
 
 </html>
