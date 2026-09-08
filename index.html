@@ -171,7 +171,7 @@
         }
 
         .last-trigger-type.sell {
-            color: pink;
+            color: rgb(255, 41, 76);
         }
     </style>
 </head>
@@ -213,6 +213,7 @@
     const CHAT_ID = localStorage.getItem('chat_id') ?? prompt('Chat ID:');
     if (CHAT_ID) localStorage.setItem('chat_id', CHAT_ID);
 
+    const TIMEZONE = 'Asia/Singapore';
     const ACCOUNT = '001-003-11032463-001';
     const GRAN = ['M5', 'M15', 'M30', 'H1'];
     const PAIRS = [
@@ -266,7 +267,7 @@
                 // time is a UTCTimestamp in seconds
                 const date = new Date(time * 1000);
                 return date.toLocaleDateString('en-GB', {
-                    timeZone: 'Europe/Athens',
+                    timeZone: TIMEZONE,
                     month: 'short',
                     day: '2-digit',
                     year: '2-digit',
@@ -284,19 +285,19 @@
                 switch (tickMarkType) {
                     case LightweightCharts.TickMarkType.Year:
                         return date.toLocaleDateString('en-US', {
-                            timeZone: 'Europe/Athens',
+                            timeZone: TIMEZONE,
                             year: 'numeric'
                         });
 
                     case LightweightCharts.TickMarkType.Month:
                         return date.toLocaleDateString('en-US', {
-                            timeZone: 'Europe/Athens',
+                            timeZone: TIMEZONE,
                             month: 'short'
                         });
 
                     case LightweightCharts.TickMarkType.DayOfMonth:
                         return date.toLocaleDateString('en-GB', {
-                            timeZone: 'Europe/Athens',
+                            timeZone: TIMEZONE,
                             month: 'short',
                             day: '2-digit',
                             year: '2-digit'
@@ -304,14 +305,14 @@
 
                     case LightweightCharts.TickMarkType.Time:
                         return date.toLocaleTimeString('en-US', {
-                            timeZone: 'Europe/Athens',
+                            timeZone: TIMEZONE,
                             hour: '2-digit',
                             minute: '2-digit',
                             hour12: false
                         });
                     default:
                         return date.toLocaleDateString('en-GB', {
-                            timeZone: 'Europe/Athens',
+                            timeZone: TIMEZONE,
                             month: 'short',
                             day: '2-digit',
                             year: '2-digit',
