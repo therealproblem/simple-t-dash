@@ -194,16 +194,19 @@
     Global config, state, and chart setup.
     - Reads the OANDA API token from localStorage, prompting for it once and
       persisting it if missing.
-    - Defines the account id, the granularities (GRAN) and instrument pairs
+    - Defines the account id, the granularities (GRAN - each a {name,
+      value} pair, value being that granularity's candle duration in ms,
+      used later to extrapolate crosshair time) and instrument pairs
       (PAIRS) the dashboard tracks, and shared style settings for candles
       and chart chrome (colors, crosshair, grid, time-axis formatting in the
-      Europe/Athens timezone).
+      Asia/Singapore timezone).
     - Creates one LightweightCharts chart per grid cell (#1-#4, one per
       granularity), each with a candlestick series, 4 line series (zigzag,
       protected high/low, entry line), 3 histogram series in a second pane
       (market-state up/down/background), and 3 marker sets (signal arrows,
-      take-profit, raw signals). All chart handles are pushed onto the
-      module-level `chartObjects` array for later scripts to update.
+      take-profit, raw signals). Each chart's handle, plus its grid index
+      (`id`) and GRAN entry (`gran`), is pushed onto the module-level
+      `chartObjects` array for later scripts to update.
 -->
 <script>
     const TOKEN = localStorage.getItem('oanda_token') ?? prompt('OANDA token:');
@@ -213,9 +216,15 @@
     const CHAT_ID = localStorage.getItem('chat_id') ?? prompt('Chat ID:');
     if (CHAT_ID) localStorage.setItem('chat_id', CHAT_ID);
 
+    const NUM_CANDLES_ON_CHART = 5000;
     const TIMEZONE = 'Asia/Singapore';
     const ACCOUNT = '001-003-11032463-001';
-    const GRAN = ['M5', 'M15', 'M30', 'H1'];
+    const GRAN = [
+        { name: 'M5', value: 5 * 60 * 1000 },
+        { name: 'M15', value: 15 * 60 * 1000 },
+        { name: 'M30', value: 30 * 60 * 1000 },
+        { name: 'H1', value: 60 * 60 * 1000 },
+    ];
     const PAIRS = [
         "AUD_CAD", "AUD_CHF", "AUD_JPY", "AUD_NZD", "AUD_USD",
         "CAD_CHF", "CAD_JPY", "CHF_JPY",
@@ -246,11 +255,11 @@
         crosshair: {
             mode: 0,
             vertLine: {
-                color: '#333',
+                color: '#fff',
                 labelBackgroundColor: '#333',
             },
             horzLine: {
-                color: '#333',
+                color: '#fff',
                 labelBackgroundColor: '#333',
             }
         },
@@ -413,6 +422,8 @@
         chart.panes()[1].setHeight(50);
 
         chartObjects.push({
+            id: i,
+            gran: GRAN[i - 1],
             chart,
             series,
             timeScale: chart.timeScale(),
@@ -455,7 +466,7 @@
         }
     }
 
-    const setIndicator = (chart, series, lines, hists, markers, indicatorData) => {
+    const setIndicator = (chart, series, lines, hists, markers, indicatorData, reset = false) => {
         const {
             zzPts,
             protectedHigh, protectedLow,
@@ -479,14 +490,14 @@
         // markers[2].setMarkers(signals)
     }
 
-    const render = (pair, reset = true) => {
+    const render = (pair, reset = false) => {
         if (Object.keys(allCandlesData).length < PAIRS.length * GRAN.length) return;
         Array.from(document.querySelectorAll('.pair-row')).map(e => e.classList.remove('selected'));
         document.querySelector(`.pair-row#${pair}`).classList.add('selected');
         document.title = pair.replace('_', '/');
         for (let i = 0; i < 4; i++) {
             const chartObj = chartObjects[i];
-            const key = `${pair}_${GRAN[i]}`;
+            const key = `${pair}_${GRAN[i].name}`;
             const candlesData = allCandlesData[key]['candles'];
             const indicatorData = allCandlesData[key]['indicators'];
             const precision = allCandlesData[key]['precision'] ?? 5;
@@ -630,7 +641,7 @@
         const allGransLastTriggeredTime = [...Array.from(pairElm.querySelectorAll('.gran')).map(e => parseInt(e.getAttribute('data-time') ?? 0))];
         const latestTriggeredTime = Math.max(...allGransLastTriggeredTime);
         pairElm.setAttribute('data-time', latestTriggeredTime);
-        
+
         // set last trigger type
         const lastTriggeredGran = pairElm.querySelector(`.gran[data-time="${latestTriggeredTime}"]`).innerText;
         lastTriggerType.classList.add(allCandlesData[`${pair}_${lastTriggeredGran}`]['indicators']['signalsCandle'].at(-1).shape == 'arrowUp' ? 'buy' : 'sell');
@@ -989,7 +1000,7 @@
             const unixTimeNow = Math.floor(Date.now() / 1000);
             let oldestUpdatedTime = unixTimeNow;
             for (const gran of GRAN) {
-                const key = `${pair}_${gran}`;
+                const key = `${pair}_${gran.name}`;
                 oldestUpdatedTime = Math.min(oldestUpdatedTime, allCandlesData[key]['lastUpdatedTime']);
             }
             const elaspedTime = unixTimeNow - oldestUpdatedTime;
@@ -1007,29 +1018,29 @@
     - Every 5s thereafter, re-fetches all pair/granularity combinations
       (getCandles is called with its default count of 5000 both here and on
       first load, so every poll replaces the full cached candle array rather
-      than merging), then, if a pair is currently selected, calls
-      render(pair, false) to repaint its charts with the fresh data without
-      resetting the visible time range, then calls sortList() and
+      than merging), then, if a pair is currently selected, calls render(pair)
+      - reset defaults to false - to repaint its charts with the fresh data
+      without resetting the visible time range, then calls sortList() and
       checkIfNeedNotification() (both defined above) to resort the sidebar
       by trigger state/recency and fire any new trigger alerts.
 -->
 <script>
     for (const pair of PAIRS) {
         for (const gran of GRAN) {
-            const key = `${pair}_${gran}`;
+            const key = `${pair}_${gran.name}`;
             const lastUpdatedTime = Math.floor(Date.now() / 1000);
             allCandlesData[key] = { candles: [], indicators: {}, lastUpdatedTime };
-            getCandles(pair, gran);
+            getCandles(pair, gran.name);
         }
     }
     setInterval(() => {
         for (const pair of PAIRS) {
             for (const gran of GRAN) {
-                getCandles(pair, gran);
+                getCandles(pair, gran.name);
             }
         }
         const selectedPair = document.querySelector('.pair-row.selected');
-        if (selectedPair != null && selectedPair != undefined) render(selectedPair.id, false);
+        if (selectedPair != null && selectedPair != undefined) render(selectedPair.id);
 
         sortList();
         checkIfNeedNotification();
@@ -1044,16 +1055,17 @@
     on market state), and a staleness ".timer" element - then injects the
     assembled HTML into the #watchlist container in one shot (sortList,
     above, later redistributes rows into #triggered). Clicking a row calls
-    render(pair) via its inline onclick. Runs once immediately.
+    render(pair, true) via its inline onclick, resetting the visible time
+    range to that pair's latest candles. Runs once immediately.
 -->
 <script>
     const createPairRows = () => {
         let htmlStr = '';
         for (const pair of PAIRS) {
-            htmlStr += `<div class="pair-row" id="${pair}" onclick="render('${pair}')"><div class="name">${pair.replace('_', '/')}</div>`;
+            htmlStr += `<div class="pair-row" id="${pair}" onclick="render('${pair}',true)"><div class="name">${pair.replace('_', '/')}</div>`;
             htmlStr += `<div class="last-trigger-type">▮</div>`;
             for (const gran of GRAN) {
-                htmlStr += `<div class="gran ${gran}">${gran}</div>`;
+                htmlStr += `<div class="gran ${gran.name}">${gran.name}</div>`;
             }
             htmlStr += `<div class="timer">0s</div>`;
             htmlStr += `</div>`;
@@ -1116,6 +1128,54 @@
                 break;
         }
     });
+</script>
+<!--
+    setupSyncCrosshair(): mirrors crosshair movement across all 4 charts, so
+    hovering one granularity highlights the same moment on the other three.
+    - For each chart, subscribes to subscribeCrosshairMove and, on every
+      move, forwards the hovered price/time to the other 3 charts' own
+      setCrosshairPosition; clears their crosshairs instead when the mouse
+      leaves the chart (param.point undefined).
+    - param.time is only populated when the crosshair sits over a real
+      candle; hovering the empty space to the right of the last candle
+      leaves it undefined but still gives a logical index
+      (param.logical), so that case extrapolates a synthetic time from the
+      last candle's timestamp plus the hovered offset (in bars) times that
+      chart's granularity duration (gran.value, ms) - see NUM_CANDLES_ON_CHART
+      above, which every chart is seeded with exactly that many candles, so
+      subtracting it from the logical index yields the offset past the end.
+    - Reads AUD_CAD's cached candles as the time reference regardless of
+      which pair is on screen, since all pairs share the same aligned
+      candle open times at a given granularity.
+    Runs once immediately.
+-->
+<script>
+    const setupSyncCrosshair = () => {
+        for (const co of chartObjects) {
+            const { chart, series, id, gran } = co;
+            const remainingCOs = chartObjects.filter(e => e.id != id);
+            chart.subscribeCrosshairMove((param) => {
+                if (param.point == undefined) {
+                    remainingCOs.map(e => e.chart.clearCrosshairPosition());
+                    return;
+                }
+
+                // param.time is unset past the last real candle; extrapolate
+                // it from the logical (bar) offset beyond the loaded range
+                let time = param.time;
+                const price = series.coordinateToPrice(param.point.y);
+                if (time == undefined) {
+                    const extraIndex = param.logical - NUM_CANDLES_ON_CHART + 1;
+                    if (extraIndex < 1) return;
+                    const key = `AUD_CAD_${gran.name}`;
+                    time = allCandlesData[key]['candles'].at(-1).time + (extraIndex * gran.value);
+                }
+
+                remainingCOs.map(e => e.chart.setCrosshairPosition(price, time, e.series));
+            });
+        }
+    }
+    setupSyncCrosshair();
 </script>
 
 </html>
