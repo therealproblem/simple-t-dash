@@ -688,7 +688,7 @@
         lastTriggerType.classList.remove('sell');
 
         // set last triggered time
-        granElm.setAttribute('data-time', signalsCandle.at(-1).time);
+        granElm.setAttribute('data-time', signalsCandle.at(-1)?.time || 0);
         const allGransLastTriggeredTime = [...Array.from(pairElm.querySelectorAll('.gran')).map(e => parseInt(e.getAttribute('data-time') ?? 0))];
         const latestTriggeredTime = Math.max(...allGransLastTriggeredTime);
         pairElm.setAttribute('data-time', latestTriggeredTime);
@@ -980,7 +980,7 @@
     }
 
     const playTripleClick = () => {
-        if (!document.querySelector('#notif').contains('on')) return;
+        if (!document.querySelector('#notif').classList.contains('on')) return;
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
         const triggerClick = (delayMs) => {
