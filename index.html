@@ -1089,7 +1089,7 @@
     setInterval(() => {
         for (const pair of PAIRS) {
             for (const gran of GRAN) {
-                getCandles(pair, gran.name);
+                getCandles(pair, gran.name, 2);
             }
         }
         const selectedPair = document.querySelector('.pair-row.selected');
