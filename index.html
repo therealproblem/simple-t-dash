@@ -1189,8 +1189,8 @@
 
     window.addEventListener('keydown', (event) => {
         const selectDefault = () => {
-            document.querySelector(`.pair-row#${PAIRS[0]}`).classList.add('selected');
-            debouncedRender(PAIRS[0]);
+            document.querySelector(`.pair-row`).classList.add('selected');
+            debouncedRender(document.querySelector(`.pair-row`).id);
             return;
         }
 
