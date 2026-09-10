@@ -63,10 +63,16 @@
             opacity: 1.0;
         }
 
+        #mode {
+            cursor: pointer;
+        }
+
         .container {
             display: flex;
             flex-direction: row;
             height: calc(100vh - 31px);
+            overflow: hidden;
+            width: 100vw;
         }
 
         .pair-row {
@@ -148,7 +154,7 @@
             color: #333;
             margin-left: 20px;
             font-size: 0.5rem;
-            width: 30px;
+            width: 10px;
         }
 
         .pair-row .timer.warning {
@@ -158,7 +164,8 @@
         #sidebar {
             width: 250px;
             height: 100%;
-            overflow-y: scroll;
+            overflow-x: hidden;
+            transition: all 0.3s;
         }
 
         #sidebar>#triggered-header {
@@ -186,6 +193,33 @@
             flex-wrap: wrap;
             width: calc(100vw - 250px);
             height: 100%;
+            transition: all 0.3s;
+        }
+
+        .grid>#sidebar {
+            width: 100vw;
+        }
+
+        .grid>#sidebar>#triggered,
+        .grid>#sidebar>#watchlist {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+        }
+
+        .grid .pair-row {
+            width: 250px;
+            height: 30px;
+            align-items: center;
+            padding: 5px 20px;
+            margin: 10px;
+            border: 1px solid #333;
+            border-radius: 10px;
+        }
+
+        .grid > #charts {
+            width: 0vw;
         }
 
         .chart {
@@ -194,17 +228,21 @@
         }
 
         .last-trigger-type {
-            color: transparent;
+            background-color: transparent;
             font-size: 1.5rem;
-            margin-left: 5px;
+            margin-left: 10px;
+            margin-right: 5px;
+            width: 5px;
+            height: 70%;
+            border-radius: 9999px;
         }
 
         .last-trigger-type.buy {
-            color: lime;
+            background-color: lime;
         }
 
         .last-trigger-type.sell {
-            color: rgb(255, 41, 76);
+            background-color: rgb(255, 41, 76);
         }
     </style>
 </head>
@@ -215,11 +253,16 @@
 
         </div>
         <div class="right">
-            <svg class="on" id="telegram" onclick="toggle(this)" xmlns="http://www.w3.org/2000/svg" height="24px"
+            <svg onclick="toggleMode()" id="mode" xmlns="http://www.w3.org/2000/svg" height="20px"
+                viewBox="0 -960 960 960" width="20px" fill="#e3e3e3">
+                <path
+                    d="M200-520q-33 0-56.5-23.5T120-600v-160q0-33 23.5-56.5T200-840h160q33 0 56.5 23.5T440-760v160q0 33-23.5 56.5T360-520H200Zm0 400q-33 0-56.5-23.5T120-200v-160q0-33 23.5-56.5T200-440h160q33 0 56.5 23.5T440-360v160q0 33-23.5 56.5T360-120H200Zm400-400q-33 0-56.5-23.5T520-600v-160q0-33 23.5-56.5T600-840h160q33 0 56.5 23.5T840-760v160q0 33-23.5 56.5T760-520H600Zm0 400q-33 0-56.5-23.5T520-200v-160q0-33 23.5-56.5T600-440h160q33 0 56.5 23.5T840-360v160q0 33-23.5 56.5T760-120H600ZM200-600h160v-160H200v160Zm400 0h160v-160H600v160Zm0 400h160v-160H600v160Zm-400 0h160v-160H200v160Zm400-400Zm0 240Zm-240 0Zm0-240Z" />
+            </svg>
+            <svg class="on" id="telegram" onclick="toggle(this)" xmlns="http://www.w3.org/2000/svg" height="20px"
                 viewBox="0 -960 960 960" width="20px" fill="dodgerblue">
                 <path d="M120-160v-640l760 320-760 320Zm80-120 474-200-474-200v140l240 60-240 60v140Zm0 0v-400 400Z" />
             </svg>
-            <svg class="on" id="notif" onclick="toggle(this)" xmlns="http://www.w3.org/2000/svg" height="24px"
+            <svg class="on" id="notif" onclick="toggle(this)" xmlns="http://www.w3.org/2000/svg" height="20px"
                 viewBox="0 -960 960 960" width="20px" fill="lime">
                 <path
                     d="M501-500ZM480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM160-200v-80h80v-280q0-83 50-147.5T420-792v-28q0-25 17.5-42.5T480-880q25 0 42.5 17.5T540-820v28q29 7 53.5 20.5T639-740l-57 57q-21-17-47-27t-55-10q-66 0-113 47t-47 113v280h480v80H160Zm496-219-56-57q10-10 15-24t5-32q0-18-5-32.5T600-589l56-56q21 21 32.5 50t11.5 63q0 34-11.5 63T656-419Zm43 43q29-29 45-70t16-86q0-45-16-86t-45-70l57-56q41 41 62.5 95.5T840-532q0 62-21.5 116.5T756-320l-57-56Z" />
@@ -544,6 +587,7 @@
     const render = (pair, reset = false) => {
         if (Object.keys(allCandlesData).length < PAIRS.length * GRAN.length) return;
         Array.from(document.querySelectorAll('.pair-row')).map(e => e.classList.remove('selected'));
+        document.querySelector('.container.grid')?.classList.remove('grid');
         document.querySelector(`.pair-row#${pair}`).classList.add('selected');
         document.title = pair.replace('_', '/');
         for (let i = 0; i < 4; i++) {
@@ -1116,7 +1160,7 @@
         let htmlStr = '';
         for (const pair of PAIRS) {
             htmlStr += `<div class="pair-row" id="${pair}" onclick="render('${pair}',true)"><div class="name">${pair.replace('_', '/')}</div>`;
-            htmlStr += `<div class="last-trigger-type">▮</div>`;
+            htmlStr += `<div class="last-trigger-type"></div>`;
             for (const gran of GRAN) {
                 htmlStr += `<div class="gran ${gran.name}">${gran.name}</div>`;
             }
@@ -1233,6 +1277,27 @@
 <script>
     const toggle = (element) => {
         element.classList.toggle('on');
+    }
+</script>
+<script>
+    const toggleMode = () => {
+        document.querySelector('.container').classList.toggle('grid');
+        if (document.querySelector('.container.grid') == undefined) return;
+        
+        document.querySelector('.pair-row.selected')?.classList.remove('selected');
+        for (const chartObj of chartObjects) {
+            chartObj.series.setData([]);
+            chartObj.lines[0].setData([]);
+            chartObj.lines[1].setData([]);
+            chartObj.lines[2].setData([]);
+            chartObj.lines[3].setData([]);
+            chartObj.hists[0].setData([]);
+            chartObj.hists[1].setData([]);
+            chartObj.hists[2].setData([]);
+            chartObj.markers[0].setMarkers([])
+            chartObj.markers[1].setMarkers([])
+            chartObj.markers[2].setMarkers([])
+        }
     }
 </script>
 
