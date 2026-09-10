@@ -85,7 +85,7 @@
             cursor: pointer;
             overflow: hidden;
             width: 250px;
-            height: 1rem;
+            height: 1.3rem;
         }
 
         .pair-row.selected {
@@ -162,7 +162,7 @@
         }
 
         #sidebar {
-            width: 250px;
+            width: 210px;
             height: 100%;
             overflow-x: hidden;
             transition: all 0.3s;
@@ -191,7 +191,7 @@
             border-top: 1px solid white;
             display: flex;
             flex-wrap: wrap;
-            width: calc(100vw - 250px);
+            width: calc(100vw - 210px);
             height: 100%;
             transition: all 0.3s;
         }
@@ -218,7 +218,7 @@
             border-radius: 10px;
         }
 
-        .grid > #charts {
+        .grid>#charts {
             width: 0vw;
         }
 
@@ -317,8 +317,11 @@
         { name: 'M5', value: 5 * 60 * 1000 },
         { name: 'M15', value: 15 * 60 * 1000 },
         { name: 'M30', value: 30 * 60 * 1000 },
-        { name: 'H1', value: 60 * 60 * 1000 },
     ];
+
+    const ADD_GRAN = [
+        { name: 'H1', value: 60 * 60 * 1000 }
+    ]
     const PAIRS = [
         "AUD_CAD", "AUD_CHF", "AUD_JPY", "AUD_NZD", "AUD_USD",
         "CAD_CHF", "CAD_JPY", "CHF_JPY",
@@ -431,7 +434,7 @@
 
     const chartObjects = [];
 
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= GRAN.length + ADD_GRAN.length; i++) {
         const chart = LightweightCharts.createChart(document.getElementById(`${i}`), CHART_SETTINGS);
         const series = chart.addSeries(LightweightCharts.CandlestickSeries, CANDLES_SETTINGS);
         const line1 = chart.addSeries(LightweightCharts.LineSeries, {
@@ -517,7 +520,7 @@
 
         chartObjects.push({
             id: i,
-            gran: GRAN[i - 1],
+            gran: i <= GRAN.length ? GRAN[i - 1] : ADD_GRAN[i - 1 - GRAN.length],
             chart,
             series,
             timeScale: chart.timeScale(),
@@ -570,6 +573,7 @@
             signalsCandle, signals, tp,
             shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone
         } = indicatorData;
+        if (tp == undefined || zzPts.length <= 0) return;
 
         // lines[0].setData(zzPts);
         lines[1].setData(protectedHigh);
@@ -585,14 +589,22 @@
     }
 
     const render = (pair, reset = false) => {
-        if (Object.keys(allCandlesData).length < PAIRS.length * GRAN.length) return;
+        if (Object.keys(allCandlesData).length < PAIRS.length * GRAN.length + ADD_GRAN.length) return;
         Array.from(document.querySelectorAll('.pair-row')).map(e => e.classList.remove('selected'));
         document.querySelector('.container.grid')?.classList.remove('grid');
         document.querySelector(`.pair-row#${pair}`).classList.add('selected');
         document.title = pair.replace('_', '/');
-        for (let i = 0; i < 4; i++) {
+
+        const selectedPair = document.querySelector('.pair-row.selected');
+        if (selectedPair != null && selectedPair != undefined) {
+            for (const gran of ADD_GRAN) {
+                getCandles(selectedPair.id, gran.name);
+            }
+        }
+
+        for (let i = 0; i < GRAN.length + ADD_GRAN.length; i++) {
             const chartObj = chartObjects[i];
-            const key = `${pair}_${GRAN[i].name}`;
+            const key = `${pair}_${[...GRAN, ...ADD_GRAN][i].name}`;
             const candlesData = allCandlesData[key]['candles'];
             const indicatorData = allCandlesData[key]['indicators'];
             const precision = allCandlesData[key]['precision'] ?? 5;
@@ -723,16 +735,28 @@
         const granElm = document.querySelector(`.pair-row#${pair} > .gran.${gran}`);
         const lastTriggerType = pairElm.querySelector('.last-trigger-type');
 
-        //reset
-        granElm.classList.remove('mkt_state_sell');
-        granElm.classList.remove('mkt_state_buy');
-        granElm.classList.remove('trigger');
-        granElm.classList.remove('ready');
-        lastTriggerType.classList.remove('buy');
-        lastTriggerType.classList.remove('sell');
+        if (granElm != undefined) {
+            granElm.setAttribute('data-time', signalsCandle.at(-1)?.time || 0);
+
+            //reset
+            granElm.classList.remove('mkt_state_sell');
+            granElm.classList.remove('mkt_state_buy');
+            granElm.classList.remove('trigger');
+            granElm.classList.remove('ready');
+            lastTriggerType.classList.remove('buy');
+            lastTriggerType.classList.remove('sell');
+
+            // set market state
+            granElm.classList.add(`mkt_state_${shouldBuy.at(-1).value ? 'buy' : 'sell'}`);
+
+            // set trigger & ready
+            const readyCond = correctZoneSize.at(-1).value && freshZone.at(-1).value && imbInProtectedArea.at(-1).value;
+            const triggerCond = readyCond && enteredImbZone.at(-1).value;
+            if (triggerCond) granElm.classList.add(`trigger`);
+            else if (readyCond) granElm.classList.add('ready');
+        }
 
         // set last triggered time
-        granElm.setAttribute('data-time', signalsCandle.at(-1)?.time || 0);
         const allGransLastTriggeredTime = [...Array.from(pairElm.querySelectorAll('.gran')).map(e => parseInt(e.getAttribute('data-time') ?? 0))];
         const latestTriggeredTime = Math.max(...allGransLastTriggeredTime);
         pairElm.setAttribute('data-time', latestTriggeredTime);
@@ -740,15 +764,6 @@
         // set last trigger type
         const lastTriggeredGran = pairElm.querySelector(`.gran[data-time="${latestTriggeredTime}"]`).innerText;
         lastTriggerType.classList.add(allCandlesData[`${pair}_${lastTriggeredGran}`]['indicators']['signalsCandle'].at(-1).shape == 'arrowUp' ? 'buy' : 'sell');
-
-        // set market state
-        granElm.classList.add(`mkt_state_${shouldBuy.at(-1).value ? 'buy' : 'sell'}`);
-
-        // set trigger & ready
-        const readyCond = correctZoneSize.at(-1).value && freshZone.at(-1).value && imbInProtectedArea.at(-1).value;
-        const triggerCond = readyCond && enteredImbZone.at(-1).value;
-        if (triggerCond) granElm.classList.add(`trigger`);
-        else if (readyCond) granElm.classList.add('ready');
     }
 </script>
 <!--
@@ -1070,7 +1085,7 @@
                 })
             });
 
-            const data = await response.json();
+            const data = response.json();
 
             if (!data.ok) {
                 console.error('Telegram API Error:', data.description);
@@ -1129,6 +1144,11 @@
             allCandlesData[key] = { candles: [], indicators: {}, lastUpdatedTime };
             getCandles(pair, gran.name);
         }
+        for (const gran of ADD_GRAN) {
+            const key = `${pair}_${gran.name}`;
+            const lastUpdatedTime = Math.floor(Date.now() / 1000);
+            allCandlesData[key] = { candles: [], indicators: {}, lastUpdatedTime };
+        }
     }
     setInterval(() => {
         for (const pair of PAIRS) {
@@ -1137,11 +1157,16 @@
             }
         }
         const selectedPair = document.querySelector('.pair-row.selected');
-        if (selectedPair != null && selectedPair != undefined) render(selectedPair.id);
+        if (selectedPair != null && selectedPair != undefined) {
+            for (const gran of ADD_GRAN) {
+                getCandles(selectedPair.id, gran.name, 2);
+            }
+            render(selectedPair.id);
+        }
 
         sortList();
         checkIfNeedNotification();
-    }, 5000);
+    }, 3000);
 </script>
 <!--
     createPairRows(): builds the sidebar's list of instrument rows, one per
@@ -1277,13 +1302,14 @@
 <script>
     const toggle = (element) => {
         element.classList.toggle('on');
+        if (element.id == 'notif' && element.classList.contains('on')) playTripleClick();
     }
 </script>
 <script>
     const toggleMode = () => {
         document.querySelector('.container').classList.toggle('grid');
         if (document.querySelector('.container.grid') == undefined) return;
-        
+
         document.querySelector('.pair-row.selected')?.classList.remove('selected');
         for (const chartObj of chartObjects) {
             chartObj.series.setData([]);
