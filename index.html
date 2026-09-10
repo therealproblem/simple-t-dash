@@ -1119,7 +1119,7 @@
             const timerElm = document.querySelector(`.pair-row#${pair} > .timer`);
             timerElm.innerText = elaspedTime + 's';
             timerElm.classList.remove('warning');
-            if (elaspedTime >= 20) timerElm.classList.add('warning');
+            if (elaspedTime >= 3) timerElm.classList.add('warning');
         }
     }, 500);
 </script>
@@ -1166,7 +1166,7 @@
 
         sortList();
         checkIfNeedNotification();
-    }, 3000);
+    }, 2000);
 </script>
 <!--
     createPairRows(): builds the sidebar's list of instrument rows, one per
