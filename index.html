@@ -728,6 +728,7 @@
     const updatePairRows = (pair, gran) => {
         const key = `${pair}_${gran}`;
         const indicatorData = allCandlesData[key]['indicators'];
+        if (indicatorData == undefined) return;
         const {
             shouldBuy, correctZoneSize, freshZone, imbInProtectedArea, enteredImbZone, signalsCandle
         } = indicatorData;
